@@ -5,6 +5,10 @@ export interface InventoryItem {
   vendor: string;
   unitPrice: number;
   currentStock: number;
+  quantity: number;
+  reorderPoint: number;
+  location?: string;
+  partNumber?: string;
   minStock?: number;
   description?: string;
   lastUpdated: Date;
@@ -16,6 +20,9 @@ export interface InventoryItem {
 export interface PurchaseRequest {
   id: string;
   itemName: string;
+  title?: string;
+  description?: string;
+  type?: string;
   unitPrice: number;
   quantity: number;
   urgency: 'low' | 'medium' | 'high' | 'critical';
@@ -33,10 +40,15 @@ export interface PurchaseRequest {
 export interface BOMItem {
   id: string;
   itemName: string;
+  description?: string;
+  partNumber?: string;
+  category?: string;
+  requiredQuantity: number;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
   vendor: string;
+  team: Team;
   inventoryItemId?: string;
   availableStock?: number;
   shortfall?: number;
@@ -45,14 +57,21 @@ export interface BOMItem {
 
 export interface BillOfMaterials {
   id: string;
-  name: string;
+  itemName: string;
+  name?: string;
+  description?: string;
+  partNumber?: string;
+  category?: string;
+  requiredQuantity: number;
+  unitPrice: number;
+  vendor: string;
   team: Team;
-  items: BOMItem[];
-  totalCost: number;
-  createdBy: string;
+  items?: BOMItem[];
+  totalCost?: number;
+  createdBy?: string;
   createdDate: Date;
   lastUpdated: Date;
-  status: 'draft' | 'active' | 'completed';
+  status?: 'draft' | 'active' | 'completed';
 }
 
 export type Team = 'Avionics' | 'Telemetry' | 'Parachute' | 'Recovery';
