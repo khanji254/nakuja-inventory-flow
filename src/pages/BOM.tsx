@@ -10,8 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { VendorSelect } from '@/components/ui/vendor-select';
+import CSVImportExport from '@/components/ui/csv-import-export';
 import { useBOMData } from '@/hooks/useBOMData';
 import { useInventoryData } from '@/hooks/useInventoryData';
+import { BOMItem } from '@/types';
 
 const BOM = () => {
   const [selectedTeam, setSelectedTeam] = useState('Recovery');
@@ -31,6 +34,21 @@ const BOM = () => {
 
   const teams = ['Recovery', 'Avionics', 'Telemetry', 'Parachute'];
   const teamBOMs = bomData.filter(item => item.team === selectedTeam);
+
+  // Flatten BOM items for CSV export
+  const flattenedBOMItems: BOMItem[] = bomData.flatMap(bom => 
+    bom.items?.map(item => ({
+      ...item,
+      team: bom.team,
+      requiredQuantity: item.quantity, // Map quantity to requiredQuantity for consistency
+    })) || []
+  );
+
+  const handleBOMImport = async (importedItems: BOMItem[]) => {
+    // Placeholder for BOM import functionality
+    // In a real implementation, you would process and add these items to the appropriate BOMs
+    throw new Error('BOM import functionality is not yet implemented');
+  };
 
   const calculateBOMCost = (team: string) => {
     return bomData
@@ -75,14 +93,11 @@ const BOM = () => {
           <p className="text-muted-foreground">Manage BOMs by team and track inventory availability</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import BOM
-          </Button>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          <CSVImportExport
+            data={flattenedBOMItems}
+            type="bom"
+            onImport={handleBOMImport}
+          />
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -146,9 +161,11 @@ const BOM = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Vendor</Label>
-                  <Input
+                  <VendorSelect
                     value={formData.vendor}
-                    onChange={(e) => setFormData({...formData, vendor: e.target.value})}
+                    onValueChange={(value) => setFormData({...formData, vendor: value})}
+                    placeholder="Select vendor..."
+                    showPaymentMethods={false}
                   />
                 </div>
               </div>

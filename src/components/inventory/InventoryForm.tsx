@@ -8,9 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { VendorSelect } from '@/components/ui/vendor-select';
 import { useAddInventoryItem, useUpdateInventoryItem } from '@/hooks/useInventoryData';
 import { InventoryItem } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { SystemConfig } from '@/lib/system-config';
 
 const inventorySchema = z.object({
   name: z.string().min(1, 'Item name is required'),
@@ -18,7 +20,11 @@ const inventorySchema = z.object({
   vendor: z.string().min(1, 'Vendor is required'),
   unitPrice: z.number().min(0, 'Unit price must be positive'),
   currentStock: z.number().min(0, 'Current stock must be positive'),
+  quantity: z.number().min(0, 'Quantity must be positive'),
+  reorderPoint: z.number().min(0, 'Reorder point must be positive'),
   minStock: z.number().min(0, 'Minimum stock must be positive'),
+  location: z.string().optional(),
+  partNumber: z.string().optional(),
   description: z.string().optional(),
   priority: z.enum(['urgent', 'important', 'normal', 'low']).default('normal'),
   eisenhowerQuadrant: z.enum(['important-urgent', 'important-not-urgent', 'not-important-urgent', 'not-important-not-urgent']).default('not-important-not-urgent'),
@@ -44,7 +50,11 @@ export const InventoryForm = ({ item, onClose }: InventoryFormProps) => {
       vendor: '',
       unitPrice: 0,
       currentStock: 0,
+      quantity: 0,
+      reorderPoint: 10,
       minStock: 10,
+      location: '',
+      partNumber: '',
       description: '',
       priority: 'normal',
       eisenhowerQuadrant: 'not-important-not-urgent',
@@ -59,7 +69,11 @@ export const InventoryForm = ({ item, onClose }: InventoryFormProps) => {
         vendor: item.vendor,
         unitPrice: item.unitPrice,
         currentStock: item.currentStock,
+        quantity: item.quantity,
+        reorderPoint: item.reorderPoint,
         minStock: item.minStock || 10,
+        location: item.location || '',
+        partNumber: item.partNumber || '',
         description: item.description || '',
         priority: item.priority || 'normal',
         eisenhowerQuadrant: item.eisenhowerQuadrant || 'not-important-not-urgent',
@@ -86,6 +100,8 @@ export const InventoryForm = ({ item, onClose }: InventoryFormProps) => {
           vendor: data.vendor,
           unitPrice: data.unitPrice,
           currentStock: data.currentStock,
+          quantity: data.quantity,
+          reorderPoint: data.reorderPoint,
           minStock: data.minStock,
           description: data.description,
           priority: data.priority,
@@ -107,16 +123,7 @@ export const InventoryForm = ({ item, onClose }: InventoryFormProps) => {
     }
   };
 
-  const categories = [
-    'Materials',
-    'Electronics',
-    'Recovery',
-    'Propulsion',
-    'Structural',
-    'Tools',
-    'Software',
-    'Other'
-  ];
+  const categories = SystemConfig.categories;
 
   return (
     <Form {...form}>
@@ -168,7 +175,51 @@ export const InventoryForm = ({ item, onClose }: InventoryFormProps) => {
               <FormItem>
                 <FormLabel>Vendor</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter vendor name" {...field} />
+                  <VendorSelect 
+                    value={field.value} 
+                    onValueChange={field.onChange}
+                    placeholder="Select vendor..."
+                    showPaymentMethods={false}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="location"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Storage Location</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select storage location" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {SystemConfig.storageLocations.map((location) => (
+                      <SelectItem key={location} value={location}>
+                        {location}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="partNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Part Number</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., PN-12345" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -205,6 +256,44 @@ export const InventoryForm = ({ item, onClose }: InventoryFormProps) => {
                   <Input
                     type="number"
                     placeholder="0"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="quantity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Quantity</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="reorderPoint"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Reorder Point</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="10"
                     {...field}
                     onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                   />

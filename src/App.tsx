@@ -8,12 +8,19 @@ import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import PurchaseRequests from "./pages/PurchaseRequests";
 import BOM from "./pages/BOM";
+import Vendors from "./pages/Vendors";
 import EisenhowerMatrix from "./pages/EisenhowerMatrix";
+import Profile from "./pages/Profile";
+import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { SyncService } from "./lib/sync-service";
 
 const queryClient = new QueryClient();
+
+// Initialize automatic synchronization
+SyncService.initializeAutoSync();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -27,7 +34,10 @@ const App = () => (
             <Route path="inventory" element={<Inventory />} />
             <Route path="purchase-requests" element={<PurchaseRequests />} />
             <Route path="bom" element={<BOM />} />
+            <Route path="vendors" element={<Vendors />} />
             <Route path="eisenhower" element={<EisenhowerMatrix />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="notifications" element={<Notifications />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />
           </Route>

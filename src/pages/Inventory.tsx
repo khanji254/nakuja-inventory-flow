@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InventoryForm } from '@/components/inventory/InventoryForm';
-import { useInventoryData, useDeleteInventoryItem } from '@/hooks/useInventoryData';
+import CSVImportExport from '@/components/ui/csv-import-export';
+import { useInventoryData, useDeleteInventoryItem, useBulkImportInventory } from '@/hooks/useInventoryData';
 import { InventoryItem } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -20,6 +21,7 @@ const Inventory = () => {
   
   const { data: inventory = [], isLoading } = useInventoryData();
   const deleteItemMutation = useDeleteInventoryItem();
+  const bulkImportMutation = useBulkImportInventory();
   const { toast } = useToast();
 
   const filteredInventory = inventory.filter(item => {
@@ -58,6 +60,14 @@ const Inventory = () => {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setSelectedItem(null);
+  };
+
+  const handleBulkImport = async (importedItems: InventoryItem[]) => {
+    try {
+      await bulkImportMutation.mutateAsync(importedItems);
+    } catch (error) {
+      throw new Error('Failed to import inventory items');
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -138,16 +148,11 @@ const Inventory = () => {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Inventory Items</CardTitle>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Upload className="h-4 w-4 mr-2" />
-                Import CSV
-              </Button>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
-            </div>
+            <CSVImportExport
+              data={inventory}
+              type="inventory"
+              onImport={handleBulkImport}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -167,7 +172,7 @@ const Inventory = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(category => (
+                {categories.map((category: string) => (
                   <SelectItem key={category} value={category}>
                     {category}
                   </SelectItem>
@@ -183,6 +188,8 @@ const Inventory = () => {
                   <TableHead>Item Name</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Vendor</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Part Number</TableHead>
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Current Stock</TableHead>
                   <TableHead>Min Stock</TableHead>
@@ -201,7 +208,13 @@ const Inventory = () => {
                     <TableCell className="text-sm text-muted-foreground">
                       {item.vendor}
                     </TableCell>
-                    <TableCell>${item.unitPrice.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{item.location || 'Not assigned'}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {item.partNumber || 'N/A'}
+                    </TableCell>
+                    <TableCell>KSh {item.unitPrice.toFixed(2)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span className={item.currentStock < (item.minStock || 10) ? 'text-red-600 font-medium' : ''}>

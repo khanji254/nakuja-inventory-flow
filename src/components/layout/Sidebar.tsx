@@ -8,7 +8,8 @@ import {
   Settings,
   Rocket,
   Grid3X3,
-  Calendar
+  Calendar,
+  Building2
 } from 'lucide-react';
 import {
   Sidebar as SidebarRoot,
@@ -28,6 +29,7 @@ const mainNavItems = [
   { title: 'Inventory', url: '/inventory', icon: Package },
   { title: 'Purchase Requests', url: '/purchase-requests', icon: ShoppingCart },
   { title: 'Bill of Materials', url: '/bom', icon: FileText },
+  { title: 'Vendors', url: '/vendors', icon: Building2 },
   { title: 'Eisenhower Matrix', url: '/eisenhower', icon: Grid3X3 },
 ];
 

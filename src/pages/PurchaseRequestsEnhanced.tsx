@@ -22,14 +22,11 @@ import {
   useCreatePurchaseList,
   useUpdatePurchaseList,
   useBulkImportPurchaseRequests,
-  useLowStockItems,
-  useAddItemToList,
-  useUpdateListItem,
-  useRemoveItemFromList
+  useLowStockItems
 } from '@/hooks/usePurchaseRequests';
 import { useVendors } from '@/hooks/useVendors';
 import { useToast } from '@/hooks/use-toast';
-import { PurchaseRequest, PurchaseList, PurchaseListItem, Team } from '@/types';
+import { PurchaseRequest, PurchaseList, Team } from '@/types';
 
 const PurchaseRequests = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,12 +37,6 @@ const PurchaseRequests = () => {
   const [selectedList, setSelectedList] = useState<PurchaseList | null>(null);
   const [showLowStock, setShowLowStock] = useState(true);
   const [activeTab, setActiveTab] = useState('requests');
-  
-  // States for item management
-  const [isDraftDialogOpen, setIsDraftDialogOpen] = useState(false);
-  const [itemSelectionMode, setItemSelectionMode] = useState<'category' | 'location' | 'individual'>('individual');
-  const [availableItems, setAvailableItems] = useState<any[]>([]);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   const { data: requests = [], isLoading } = usePurchaseRequests();
   const { data: purchaseLists = [] } = usePurchaseLists();
@@ -56,12 +47,6 @@ const PurchaseRequests = () => {
   const createListMutation = useCreatePurchaseList();
   const updateListMutation = useUpdatePurchaseList();
   const bulkImportMutation = useBulkImportPurchaseRequests();
-  
-  // New item management mutations
-  const addItemMutation = useAddItemToList();
-  const updateItemMutation = useUpdateListItem();
-  const removeItemMutation = useRemoveItemFromList();
-  
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -81,7 +66,7 @@ const PurchaseRequests = () => {
     team: 'Avionics' as Team,
     category: '',
     color: '#3B82F6',
-    vendors: [] as string[], // Changed to array
+    vendor: '',
     notes: ''
   });
 
@@ -160,50 +145,11 @@ const PurchaseRequests = () => {
     });
   };
 
-  const handleListSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!listFormData.title || listFormData.vendors.length === 0) {
-      toast({ title: 'Please fill in required fields (title and at least one vendor)', variant: 'destructive' });
-      return;
-    }
-
-    createListMutation.mutate({
-      title: listFormData.title,
-      description: listFormData.description,
-      team: listFormData.team as any,
-      category: listFormData.category || 'General',
-      color: listFormData.color,
-      vendors: listFormData.vendors,
-      items: [], // Start with empty items, can be added later
-      status: 'draft',
-      createdBy: 'Current User',
-      notes: listFormData.notes
-    }, {
-      onSuccess: () => {
-        toast({ title: 'Purchase list created successfully' });
-        setIsListDialogOpen(false);
-        setListFormData({
-          title: '',
-          description: '',
-          team: 'Avionics',
-          category: '',
-          color: '#3B82F6',
-          vendors: [],
-          notes: ''
-        });
-      },
-      onError: () => {
-        toast({ title: 'Error creating purchase list', variant: 'destructive' });
-      }
-    });
-  };
-
   const generatePurchaseListText = (list: PurchaseList) => {
-    const vendorNames = list.vendors.map(vId => vendors.find(v => v.id === vId)?.name || 'Unknown Vendor').join(', ');
+    const vendorName = vendors.find(v => v.id === list.vendor)?.name || 'Unknown Vendor';
     const total = list.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
     
-    let text = `Hi Dr Patrick.... I wanted to make the purchase from ${vendorNames}... Here is a list\n\n`;
+    let text = `Hi Dr Patrick.... I wanted to make the purchase from ${vendorName}... Here is a list\n\n`;
     text += `${list.title}\n\n`;
     text += `No.\tComponent\tQuantity\tUnit Price (KSh)\tTotal (KSh)\n\n`;
     
@@ -253,30 +199,14 @@ const PurchaseRequests = () => {
       const vendor = vendors.find(v => v.id === vendorId);
       const vendorName = vendor?.name || 'Unknown Vendor';
       
-      // Convert PurchaseRequest to PurchaseListItem
-      const listItems: PurchaseListItem[] = vendorRequests.map(request => ({
-        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        requestId: request.id,
-        itemName: request.itemName,
-        description: request.description || '',
-        quantity: request.quantity,
-        unitPrice: request.unitPrice,
-        totalPrice: request.quantity * request.unitPrice,
-        vendor: request.vendor,
-        category: 'General',
-        urgency: request.urgency,
-        status: 'pending' as const,
-        team: request.team
-      }));
-      
       createListMutation.mutate({
         title: `${vendorName} Purchase List`,
         description: `Auto-generated from approved requests`,
         team: vendorRequests[0].team,
         category: 'Mixed',
         color: '#10B981',
-        vendors: [vendorId], // Use vendors array
-        items: listItems,
+        vendor: vendorId,
+        items: vendorRequests,
         status: 'approved',
         createdBy: 'Current User',
         notes: 'Auto-generated from approved purchase requests'
@@ -485,8 +415,8 @@ const PurchaseRequests = () => {
 
                 <CSVImportExport
                   data={filteredRequests}
-                  type="purchase-requests"
-                  onImport={async (data) => {
+                  filename="purchase-requests"
+                  onImport={(data) => {
                     bulkImportMutation.mutate(data as PurchaseRequest[], {
                       onSuccess: () => toast({ title: 'Requests imported successfully' }),
                       onError: () => toast({ title: 'Import failed', variant: 'destructive' })
@@ -641,7 +571,7 @@ const PurchaseRequests = () => {
             <CardContent>
               <div className="grid gap-4">
                 {purchaseLists.map((list) => {
-                  const listVendors = list.vendors.map(vId => vendors.find(v => v.id === vId)).filter(Boolean);
+                  const vendor = vendors.find(v => v.id === list.vendor);
                   return (
                     <Card key={list.id} className="border-l-4" style={{ borderLeftColor: list.color }}>
                       <CardHeader className="pb-3">
@@ -649,24 +579,13 @@ const PurchaseRequests = () => {
                           <div>
                             <CardTitle className="text-lg">{list.title}</CardTitle>
                             <CardDescription>
-                              {listVendors.length > 0 ? listVendors.map(v => v?.name).join(', ') : 'No vendors'} • {list.items.length} items • KSh {list.totalAmount.toLocaleString()}
+                              {vendor?.name} • {list.items.length} items • KSh {list.totalAmount.toLocaleString()}
                             </CardDescription>
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge style={{ backgroundColor: list.color, color: 'white' }}>
                               {list.status}
                             </Badge>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedList(list);
-                                setIsDraftDialogOpen(true);
-                              }}
-                            >
-                              <Plus className="h-4 w-4 mr-2" />
-                              New Draft
-                            </Button>
                             <Button
                               size="sm"
                               onClick={() => copyToClipboard(list)}
@@ -682,7 +601,7 @@ const PurchaseRequests = () => {
                           {list.items.slice(0, 3).map((item) => (
                             <div key={item.id} className="flex justify-between text-sm">
                               <span>{item.itemName}</span>
-                              <span>Qty: {item.quantity} × KSh {item.unitPrice} = KSh {item.totalPrice.toLocaleString()}</span>
+                              <span>Qty: {item.quantity} × KSh {item.unitPrice} = KSh {(item.quantity * item.unitPrice).toLocaleString()}</span>
                             </div>
                           ))}
                           {list.items.length > 3 && (
@@ -894,277 +813,6 @@ const PurchaseRequests = () => {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* New List Dialog */}
-      <Dialog open={isListDialogOpen} onOpenChange={setIsListDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create New Purchase List</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleListSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="list-title">Title *</Label>
-                <Input
-                  id="list-title"
-                  value={listFormData.title}
-                  onChange={(e) => setListFormData({ ...listFormData, title: e.target.value })}
-                  placeholder="e.g., Weekly Hardware Order"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="list-team">Team</Label>
-                <Select value={listFormData.team} onValueChange={(value) => setListFormData({ ...listFormData, team: value as Team })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Avionics">Avionics</SelectItem>
-                    <SelectItem value="Mechanical">Mechanical</SelectItem>
-                    <SelectItem value="Software">Software</SelectItem>
-                    <SelectItem value="Testing">Testing</SelectItem>
-                    <SelectItem value="General">General</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="list-description">Description</Label>
-              <Textarea
-                id="list-description"
-                value={listFormData.description}
-                onChange={(e) => setListFormData({ ...listFormData, description: e.target.value })}
-                placeholder="Brief description of this purchase list"
-                rows={2}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="list-category">Category</Label>
-                <Input
-                  id="list-category"
-                  value={listFormData.category}
-                  onChange={(e) => setListFormData({ ...listFormData, category: e.target.value })}
-                  placeholder="e.g., Electronics, Tools, Materials"
-                />
-              </div>
-              <div>
-                <Label htmlFor="list-vendors">Vendors *</Label>
-                <div className="space-y-2">
-                  <VendorSelect
-                    value=""
-                    onValueChange={(value) => {
-                      if (value && !listFormData.vendors.includes(value)) {
-                        setListFormData({ 
-                          ...listFormData, 
-                          vendors: [...listFormData.vendors, value] 
-                        });
-                      }
-                    }}
-                    placeholder="Add vendors to this list"
-                  />
-                  {listFormData.vendors.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {listFormData.vendors.map((vendorId) => {
-                        const vendor = vendors.find(v => v.id === vendorId);
-                        return (
-                          <Badge key={vendorId} variant="secondary" className="text-xs">
-                            {vendor?.name || vendorId}
-                            <button
-                              type="button"
-                              onClick={() => setListFormData({
-                                ...listFormData,
-                                vendors: listFormData.vendors.filter(v => v !== vendorId)
-                              })}
-                              className="ml-1 hover:text-red-500"
-                            >
-                              ×
-                            </button>
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="list-color">List Color</Label>
-              <div className="flex gap-2 mt-2">
-                {['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280'].map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`w-8 h-8 rounded-full border-2 ${listFormData.color === color ? 'border-gray-900' : 'border-gray-300'}`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => setListFormData({ ...listFormData, color })}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="list-notes">Notes</Label>
-              <Textarea
-                id="list-notes"
-                value={listFormData.notes}
-                onChange={(e) => setListFormData({ ...listFormData, notes: e.target.value })}
-                placeholder="Additional notes or special instructions"
-                rows={2}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsListDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createListMutation.isPending}>
-                {createListMutation.isPending ? 'Creating...' : 'Create List'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* New Draft Dialog */}
-      <Dialog open={isDraftDialogOpen} onOpenChange={setIsDraftDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Items to "{selectedList?.title}"</DialogTitle>
-          </DialogHeader>
-          
-          <Tabs value={itemSelectionMode} onValueChange={(value: any) => setItemSelectionMode(value)}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="individual">Individual Selection</TabsTrigger>
-              <TabsTrigger value="category">By Category</TabsTrigger>
-              <TabsTrigger value="location">By Location</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="individual" className="space-y-4">
-              <div className="space-y-4">
-                <div className="text-sm text-muted-foreground">
-                  Select individual items from inventory and approved requests
-                </div>
-                
-                {/* Inventory Items */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Available Inventory Items</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {/* This would be populated with inventory items */}
-                      <div className="text-sm text-muted-foreground">
-                        Connect with inventory to show available items
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                {/* Approved Requests */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Approved Purchase Requests</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {requests.filter(r => r.status === 'approved' && !r.listId).map((request) => (
-                        <div key={request.id} className="flex items-center justify-between p-2 border rounded">
-                          <div className="flex-1">
-                            <div className="font-medium">{request.itemName}</div>
-                            <div className="text-sm text-muted-foreground">
-                              Qty: {request.quantity} × KSh {request.unitPrice} • {request.vendor}
-                            </div>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              if (selectedList) {
-                                addItemMutation.mutate({
-                                  listId: selectedList.id,
-                                  item: {
-                                    requestId: request.id,
-                                    itemName: request.itemName,
-                                    description: request.description || '',
-                                    quantity: request.quantity,
-                                    unitPrice: request.unitPrice,
-                                    totalPrice: request.quantity * request.unitPrice,
-                                    vendor: request.vendor,
-                                    category: 'General',
-                                    urgency: request.urgency,
-                                    status: 'pending',
-                                    team: request.team
-                                  }
-                                }, {
-                                  onSuccess: () => {
-                                    toast({ title: 'Item added to list' });
-                                  }
-                                });
-                              }
-                            }}
-                          >
-                            Add to List
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="category" className="space-y-4">
-              <div className="space-y-4">
-                <div className="text-sm text-muted-foreground">
-                  Select items by category (Electronics, Mechanical, etc.)
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {['Electronics', 'Mechanical', 'Tools', 'Materials', 'Safety', 'Testing'].map((category) => (
-                    <Card key={category} className="cursor-pointer hover:shadow-md">
-                      <CardContent className="p-4 text-center">
-                        <div className="font-medium">{category}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Click to add all {category.toLowerCase()} items
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="location" className="space-y-4">
-              <div className="space-y-4">
-                <div className="text-sm text-muted-foreground">
-                  Select items by storage location
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {['Store A', 'Store B', 'Store C', 'Warehouse', 'Lab Storage', 'Office'].map((location) => (
-                    <Card key={location} className="cursor-pointer hover:shadow-md">
-                      <CardContent className="p-4 text-center">
-                        <div className="font-medium">{location}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Click to add all items from {location}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-          
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setIsDraftDialogOpen(false)}>
-              Close
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
     </div>
