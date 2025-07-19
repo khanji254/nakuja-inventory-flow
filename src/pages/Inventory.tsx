@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { InventoryForm } from '@/components/inventory/InventoryForm';
 import CSVImportExport from '@/components/ui/csv-import-export';
 import { useInventoryData, useDeleteInventoryItem, useBulkImportInventory } from '@/hooks/useInventoryData';
+import { usePendingInventory } from '@/hooks/usePendingInventory';
 import { InventoryItem } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -20,6 +21,7 @@ const Inventory = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   
   const { data: inventory = [], isLoading } = useInventoryData();
+  const { data: pendingItems = [] } = usePendingInventory();
   const deleteItemMutation = useDeleteInventoryItem();
   const bulkImportMutation = useBulkImportInventory();
   const { toast } = useToast();

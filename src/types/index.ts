@@ -3,7 +3,7 @@ export interface InventoryItem {
   name: string;
   category: string;
   vendor: string;
-  unitPrice: number;
+  unitPrice: number; // Always in KSh
   currentStock: number;
   quantity: number;
   reorderPoint: number;
@@ -15,6 +15,7 @@ export interface InventoryItem {
   updatedBy: string;
   priority?: 'urgent' | 'important' | 'normal' | 'low';
   eisenhowerQuadrant?: 'important-urgent' | 'important-not-urgent' | 'not-important-urgent' | 'not-important-not-urgent';
+  isPending?: boolean; // Indicates if item is in pending state (awaiting confirmation)
 }
 
 export interface PurchaseRequest {
@@ -23,7 +24,7 @@ export interface PurchaseRequest {
   title?: string;
   description?: string;
   type?: string;
-  unitPrice: number;
+  unitPrice: number; // Always in KSh
   quantity: number;
   urgency: 'low' | 'medium' | 'high' | 'critical';
   vendor: string;
@@ -39,6 +40,7 @@ export interface PurchaseRequest {
   orderNumber?: string;
   deliveryDate?: Date;
   isLowStockItem?: boolean;
+  movedToPending?: boolean; // Indicates if moved to pending inventory
 }
 
 export interface PurchaseList {
@@ -86,8 +88,8 @@ export interface BOMItem {
   category?: string;
   requiredQuantity: number;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  unitPrice: number; // Always in KSh
+  totalPrice: number; // Always in KSh
   vendor: string;
   team: Team;
   inventoryItemId?: string;
@@ -104,11 +106,11 @@ export interface BillOfMaterials {
   partNumber?: string;
   category?: string;
   requiredQuantity: number;
-  unitPrice: number;
+  unitPrice: number; // Always in KSh
   vendor: string;
   team: Team;
   items?: BOMItem[];
-  totalCost?: number;
+  totalCost?: number; // Always in KSh
   createdBy?: string;
   createdDate: Date;
   lastUpdated: Date;
@@ -150,12 +152,22 @@ export interface UserProfile {
 }
 
 export interface DashboardData {
-  totalInventoryValue: number;
+  totalInventoryValue: number; // Always in KSh
   lowStockItems: number;
   pendingRequests: number;
   activeBOMs: number;
   budgetUtilization: number;
   stockLevels: { [key: string]: number };
+  pendingInventoryItems: number;
+}
+
+export interface PendingInventoryItem extends InventoryItem {
+  originalRequestId?: string;
+  expectedQuantity: number;
+  actualQuantity?: number;
+  receivedDate?: Date;
+  qualityCheck?: 'pending' | 'passed' | 'failed';
+  notes?: string;
 }
 
 export interface EisenhowerMatrix {

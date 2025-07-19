@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Download, Upload, Link2, AlertCircle, DollarSign, Package } from 'lucide-react';
+import { Plus, Download, Upload, Link2, AlertCircle, DollarSign, Package, FileText, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,8 @@ import { VendorSelect } from '@/components/ui/vendor-select';
 import CSVImportExport from '@/components/ui/csv-import-export';
 import { useBOMData } from '@/hooks/useBOMData';
 import { useInventoryData } from '@/hooks/useInventoryData';
+import { syncService } from '@/lib/sync-service';
+import { useToast } from '@/hooks/use-toast';
 import { BOMItem } from '@/types';
 
 const BOM = () => {
@@ -21,6 +23,7 @@ const BOM = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { data: bomData = [] } = useBOMData();
   const { data: inventory = [] } = useInventoryData();
+  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     itemName: '',
@@ -54,6 +57,43 @@ const BOM = () => {
     return bomData
       .filter(item => item.team === team)
       .reduce((sum, item) => sum + (item.unitPrice * item.requiredQuantity), 0);
+  };
+
+  const downloadCSV = (type: 'newly-purchased' | 'requirements' | 'replacements' | 'full-inventory') => {
+    let csvContent = '';
+    let filename = '';
+
+    switch (type) {
+      case 'newly-purchased':
+        csvContent = syncService.generateNewlyPurchasedCSV();
+        filename = 'newly-purchased-components.csv';
+        break;
+      case 'requirements':
+        csvContent = syncService.generateBOMRequirementsCSV(selectedTeam);
+        filename = `${selectedTeam}-bom-requirements.csv`;
+        break;
+      case 'replacements':
+        csvContent = syncService.generateReplacementItemsCSV();
+        filename = 'replacement-items.csv';
+        break;
+      case 'full-inventory':
+        csvContent = syncService.generateInventoryCSV();
+        filename = 'full-inventory.csv';
+        break;
+    }
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({ title: `Downloaded ${filename}` });
   };
 
   const getInventoryAvailability = (bomItem: any) => {
@@ -93,6 +133,37 @@ const BOM = () => {
           <p className="text-muted-foreground">Manage BOMs by team and track inventory availability</p>
         </div>
         <div className="flex gap-2">
+          <Select onValueChange={(value) => downloadCSV(value as any)}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Download Lists..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newly-purchased">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4" />
+                  Newly Purchased
+                </div>
+              </SelectItem>
+              <SelectItem value="requirements">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  BOM Requirements
+                </div>
+              </SelectItem>
+              <SelectItem value="replacements">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Replacement Items
+                </div>
+              </SelectItem>
+              <SelectItem value="full-inventory">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Full Inventory
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
           <CSVImportExport
             data={flattenedBOMItems}
             type="bom"
@@ -151,10 +222,10 @@ const BOM = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Unit Price ($)</Label>
+                  <Label>Unit Price (KSh)</Label>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="1"
                     value={formData.unitPrice}
                     onChange={(e) => setFormData({...formData, unitPrice: e.target.value})}
                   />
@@ -193,7 +264,7 @@ const BOM = () => {
               <CardTitle className="text-sm font-medium">{team} Team</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${calculateBOMCost(team).toLocaleString()}</div>
+              <div className="text-2xl font-bold">KSh {calculateBOMCost(team).toLocaleString()}</div>
               <div className="text-sm text-muted-foreground">
                 {bomData.filter(item => item.team === team).length} items
               </div>
@@ -223,7 +294,7 @@ const BOM = () => {
             <div className="flex items-center gap-4">
               <div className="text-sm">
                 <span className="font-medium">Total Cost: </span>
-                <span className="text-2xl font-bold">${calculateBOMCost(selectedTeam).toLocaleString()}</span>
+                <span className="text-2xl font-bold">KSh {calculateBOMCost(selectedTeam).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -259,8 +330,8 @@ const BOM = () => {
                       <Badge variant="outline">{item.category}</Badge>
                     </TableCell>
                     <TableCell>{item.requiredQuantity}</TableCell>
-                    <TableCell>${item.unitPrice.toFixed(2)}</TableCell>
-                    <TableCell>${(item.unitPrice * item.requiredQuantity).toFixed(2)}</TableCell>
+                    <TableCell>KSh {item.unitPrice.toLocaleString()}</TableCell>
+                    <TableCell>KSh {(item.unitPrice * item.requiredQuantity).toLocaleString()}</TableCell>
                     <TableCell>
                       {getAvailabilityBadge(availability.status, availability.available, item.requiredQuantity)}
                     </TableCell>
@@ -300,12 +371,12 @@ const BOM = () => {
               {teams.map(team => (
                 <div key={team} className="flex justify-between">
                   <span>{team}:</span>
-                  <span className="font-medium">${calculateBOMCost(team).toLocaleString()}</span>
+                  <span className="font-medium">KSh {calculateBOMCost(team).toLocaleString()}</span>
                 </div>
               ))}
               <div className="border-t pt-2 flex justify-between font-bold">
                 <span>Total:</span>
-                <span>${teams.reduce((sum, team) => sum + calculateBOMCost(team), 0).toLocaleString()}</span>
+                <span>KSh {teams.reduce((sum, team) => sum + calculateBOMCost(team), 0).toLocaleString()}</span>
               </div>
             </div>
           </CardContent>

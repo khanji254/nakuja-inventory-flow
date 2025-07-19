@@ -15,7 +15,7 @@ import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import { SyncService } from "./lib/sync-service";
+import { syncService } from "./lib/sync-service";
 
 const queryClient = new QueryClient();
 

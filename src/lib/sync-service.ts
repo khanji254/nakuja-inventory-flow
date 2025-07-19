@@ -1,299 +1,284 @@
 import { localStorageService } from './storage-service';
-import { PurchaseRequest, InventoryItem, PurchaseList, BillOfMaterials } from '@/types';
-import { SystemConfig } from './system-config';
+import { InventoryItem, PurchaseRequest, BillOfMaterials, PurchaseList } from '@/types';
 
-export class SyncService {
-  /**
-   * Synchronizes completed purchase requests with inventory
-   * This should be called when a purchase request status changes to 'completed'
-   */
-  static async syncPurchaseToInventory(purchaseRequest: PurchaseRequest): Promise<void> {
-    const inventory = localStorageService.getItem<InventoryItem[]>('inventoryItems') || [];
+// Centralized data synchronization service
+class SyncService {
+  private listeners: Map<string, Set<() => void>> = new Map();
+
+  // Subscribe to data changes
+  subscribe(key: string, callback: () => void) {
+    if (!this.listeners.has(key)) {
+      this.listeners.set(key, new Set());
+    }
+    this.listeners.get(key)!.add(callback);
+
+    // Return unsubscribe function
+    return () => {
+      this.listeners.get(key)?.delete(callback);
+    };
+  }
+
+  // Notify listeners of data changes
+  private notify(key: string) {
+    const callbacks = this.listeners.get(key);
+    if (callbacks) {
+      callbacks.forEach(callback => callback());
+    }
+  }
+
+  // Move completed purchase request to pending inventory
+  async moveToPendingInventory(purchaseRequest: PurchaseRequest): Promise<void> {
+    if (purchaseRequest.status !== 'completed') {
+      throw new Error('Only completed purchase requests can be moved to pending inventory');
+    }
+
+    // Get current pending inventory items
+    const pendingItems = localStorageService.getItem<InventoryItem[]>('pending-inventory') || [];
     
+    // Create inventory item from purchase request
+    const newInventoryItem: InventoryItem = {
+      id: `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: purchaseRequest.itemName,
+      description: purchaseRequest.description || '',
+      category: this.getCategoryFromPurchaseRequest(purchaseRequest),
+      vendor: purchaseRequest.vendor,
+      unitPrice: purchaseRequest.unitPrice,
+      currentStock: 0, // Will be set when moved to main inventory
+      quantity: purchaseRequest.quantity,
+      reorderPoint: Math.ceil(purchaseRequest.quantity * 0.2), // 20% of quantity as default
+      minStock: Math.ceil(purchaseRequest.quantity * 0.1), // 10% of quantity as default
+      lastUpdated: new Date(),
+      updatedBy: 'System - From Purchase Request',
+      priority: this.mapUrgencyToPriority(purchaseRequest.urgency),
+      eisenhowerQuadrant: purchaseRequest.eisenhowerQuadrant,
+      isPending: true
+    };
+
+    // Add to pending inventory
+    pendingItems.push(newInventoryItem);
+    localStorageService.setItem('pending-inventory', pendingItems);
+
+    // Update purchase request to mark as processed
+    const purchaseRequests = localStorageService.getItem<PurchaseRequest[]>('purchase-requests') || [];
+    const updatedRequests = purchaseRequests.map(req => 
+      req.id === purchaseRequest.id 
+        ? { ...req, notes: (req.notes || '') + '\n[Moved to pending inventory]', movedToPending: true }
+        : req
+    );
+    localStorageService.setItem('purchase-requests', updatedRequests);
+
+    // Notify listeners
+    this.notify('pending-inventory');
+    this.notify('purchase-requests');
+  }
+
+  // Move pending inventory item to main inventory
+  async movePendingToInventory(pendingItem: InventoryItem, actualQuantity: number): Promise<void> {
+    // Get current inventories
+    const pendingItems = localStorageService.getItem<InventoryItem[]>('pending-inventory') || [];
+    const inventory = localStorageService.getItem<InventoryItem[]>('inventory') || [];
+
     // Check if item already exists in inventory
     const existingItemIndex = inventory.findIndex(item => 
-      item.name.toLowerCase() === purchaseRequest.itemName.toLowerCase() &&
-      item.vendor === purchaseRequest.vendor
+      item.name.toLowerCase() === pendingItem.name.toLowerCase() &&
+      item.vendor === pendingItem.vendor
     );
 
     if (existingItemIndex >= 0) {
-      // Update existing item stock
+      // Update existing item
       inventory[existingItemIndex] = {
         ...inventory[existingItemIndex],
-        currentStock: inventory[existingItemIndex].currentStock + purchaseRequest.quantity,
-        quantity: inventory[existingItemIndex].quantity + purchaseRequest.quantity,
+        currentStock: inventory[existingItemIndex].currentStock + actualQuantity,
+        quantity: inventory[existingItemIndex].quantity + actualQuantity,
+        unitPrice: pendingItem.unitPrice, // Update with latest price
         lastUpdated: new Date(),
-        updatedBy: 'Purchase System'
+        updatedBy: 'System - From Pending Inventory'
       };
     } else {
       // Create new inventory item
       const newInventoryItem: InventoryItem = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: purchaseRequest.itemName,
-        category: this.inferCategoryFromTeam(purchaseRequest.team),
-        vendor: purchaseRequest.vendor,
-        unitPrice: purchaseRequest.unitPrice,
-        currentStock: purchaseRequest.quantity,
-        quantity: purchaseRequest.quantity,
-        reorderPoint: Math.max(5, Math.floor(purchaseRequest.quantity * 0.2)), // 20% of initial quantity
-        location: 'Store A', // Default location, can be updated later
-        partNumber: undefined,
-        minStock: Math.max(3, Math.floor(purchaseRequest.quantity * 0.1)), // 10% of initial quantity
-        description: purchaseRequest.description || `Purchased from ${purchaseRequest.vendor}`,
+        ...pendingItem,
+        id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        currentStock: actualQuantity,
+        quantity: actualQuantity,
         lastUpdated: new Date(),
-        updatedBy: 'Purchase System',
-        priority: purchaseRequest.urgency === 'critical' ? 'urgent' : 
-                 purchaseRequest.urgency === 'high' ? 'important' : 'normal',
-        eisenhowerQuadrant: purchaseRequest.eisenhowerQuadrant
+        updatedBy: 'System - From Pending Inventory',
+        isPending: false
       };
-      
       inventory.push(newInventoryItem);
     }
 
-    localStorageService.setItem('inventoryItems', inventory);
+    // Remove from pending
+    const updatedPendingItems = pendingItems.filter(item => item.id !== pendingItem.id);
+
+    // Save updates
+    localStorageService.setItem('inventory', inventory);
+    localStorageService.setItem('pending-inventory', updatedPendingItems);
+
+    // Notify listeners
+    this.notify('inventory');
+    this.notify('pending-inventory');
   }
 
-  /**
-   * Synchronizes BOM requirements with inventory availability
-   * Returns items that need to be purchased for the BOM
-   */
-  static async syncBOMWithInventory(bom: BillOfMaterials): Promise<PurchaseRequest[]> {
-    const inventory = localStorageService.getItem<InventoryItem[]>('inventoryItems') || [];
-    const neededPurchases: PurchaseRequest[] = [];
+  // Get pending inventory items
+  getPendingInventoryItems(): InventoryItem[] {
+    return localStorageService.getItem<InventoryItem[]>('pending-inventory') || [];
+  }
 
-    // For single item BOMs
-    if (!bom.items) {
-      const inventoryItem = inventory.find(item => 
-        item.name.toLowerCase() === bom.itemName.toLowerCase()
-      );
+  // Sync BOM with inventory
+  async syncBOMWithInventory(bomId: string): Promise<void> {
+    const boms = localStorageService.getItem<BillOfMaterials[]>('bom-data') || [];
+    const inventory = localStorageService.getItem<InventoryItem[]>('inventory') || [];
 
-      if (!inventoryItem || inventoryItem.currentStock < bom.requiredQuantity) {
-        const shortfall = bom.requiredQuantity - (inventoryItem?.currentStock || 0);
-        neededPurchases.push({
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          itemName: bom.itemName,
-          title: `BOM Requirement: ${bom.name || bom.itemName}`,
-          description: `Required for ${bom.name || bom.itemName} BOM`,
-          type: 'BOM',
-          unitPrice: bom.unitPrice,
-          quantity: shortfall,
-          urgency: 'medium',
-          vendor: bom.vendor,
-          requestedBy: 'BOM System',
-          requestedDate: new Date(),
-          status: 'pending',
-          team: bom.team,
-          notes: `Shortfall for BOM: ${bom.name || bom.itemName}`,
-          isLowStockItem: true
-        });
-      }
-    } else {
-      // For multi-item BOMs
-      bom.items.forEach(bomItem => {
-        const inventoryItem = inventory.find(item => 
-          item.name.toLowerCase() === bomItem.itemName.toLowerCase()
+    const updatedBOMs = boms.map(bom => {
+      if (bom.id !== bomId) return bom;
+
+      const updatedItems = bom.items?.map(bomItem => {
+        const inventoryItem = inventory.find(inv => 
+          inv.name.toLowerCase() === bomItem.itemName.toLowerCase() ||
+          inv.partNumber === bomItem.partNumber
         );
 
-        if (!inventoryItem || inventoryItem.currentStock < bomItem.requiredQuantity) {
-          const shortfall = bomItem.requiredQuantity - (inventoryItem?.currentStock || 0);
-          neededPurchases.push({
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            itemName: bomItem.itemName,
-            title: `BOM Requirement: ${bomItem.itemName}`,
-            description: bomItem.description || `Required for ${bom.name || bom.itemName} BOM`,
-            type: 'BOM',
-            unitPrice: bomItem.unitPrice,
-            quantity: shortfall,
-            urgency: 'medium',
-            vendor: bomItem.vendor,
-            requestedBy: 'BOM System',
-            requestedDate: new Date(),
-            status: 'pending',
-            team: bomItem.team,
-            notes: `Shortfall for BOM: ${bom.name || bom.itemName}`,
-            isLowStockItem: true
-          });
-        }
+        return {
+          ...bomItem,
+          inventoryItemId: inventoryItem?.id,
+          availableStock: inventoryItem?.currentStock || 0,
+          shortfall: Math.max(0, bomItem.requiredQuantity - (inventoryItem?.currentStock || 0))
+        };
       });
-    }
 
-    return neededPurchases;
+      return {
+        ...bom,
+        items: updatedItems,
+        lastUpdated: new Date()
+      };
+    });
+
+    localStorageService.setItem('bom-data', updatedBOMs);
+    this.notify('bom-data');
   }
 
-  /**
-   * Updates inventory when items are allocated to a BOM
-   */
-  static async allocateInventoryToBOM(bom: BillOfMaterials): Promise<void> {
-    const inventory = localStorageService.getItem<InventoryItem[]>('inventoryItems') || [];
-
-    // For single item BOMs
-    if (!bom.items) {
-      const itemIndex = inventory.findIndex(item => 
-        item.name.toLowerCase() === bom.itemName.toLowerCase()
-      );
-
-      if (itemIndex >= 0 && inventory[itemIndex].currentStock >= bom.requiredQuantity) {
-        inventory[itemIndex].currentStock -= bom.requiredQuantity;
-        inventory[itemIndex].lastUpdated = new Date();
-        inventory[itemIndex].updatedBy = 'BOM System';
-      }
-    } else {
-      // For multi-item BOMs
-      bom.items.forEach(bomItem => {
-        const itemIndex = inventory.findIndex(item => 
-          item.name.toLowerCase() === bomItem.itemName.toLowerCase()
-        );
-
-        if (itemIndex >= 0 && inventory[itemIndex].currentStock >= bomItem.requiredQuantity) {
-          inventory[itemIndex].currentStock -= bomItem.requiredQuantity;
-          inventory[itemIndex].lastUpdated = new Date();
-          inventory[itemIndex].updatedBy = 'BOM System';
-        }
-      });
+  // Helper methods
+  private getCategoryFromPurchaseRequest(request: PurchaseRequest): string {
+    // Simple category mapping based on item name keywords
+    const name = request.itemName.toLowerCase();
+    if (name.includes('resistor') || name.includes('capacitor') || name.includes('sensor') || name.includes('circuit')) {
+      return 'Electronics';
     }
-
-    localStorageService.setItem('inventoryItems', inventory);
+    if (name.includes('screw') || name.includes('bolt') || name.includes('nut') || name.includes('washer')) {
+      return 'Fasteners';
+    }
+    if (name.includes('fiber') || name.includes('composite') || name.includes('material') || name.includes('sheet')) {
+      return 'Materials';
+    }
+    if (name.includes('parachute') || name.includes('cord') || name.includes('recovery')) {
+      return 'Recovery';
+    }
+    return 'General';
   }
 
-  /**
-   * Generates purchase requests for low stock items
-   */
-  static async generateLowStockPurchaseRequests(): Promise<PurchaseRequest[]> {
-    const inventory = localStorageService.getItem<InventoryItem[]>('inventoryItems') || [];
-    const lowStockItems = inventory.filter(item => 
-      item.currentStock <= (item.minStock || item.reorderPoint || 10)
+  private mapUrgencyToPriority(urgency: PurchaseRequest['urgency']): InventoryItem['priority'] {
+    switch (urgency) {
+      case 'critical': return 'urgent';
+      case 'high': return 'important';
+      case 'medium': return 'normal';
+      case 'low': return 'low';
+      default: return 'normal';
+    }
+  }
+
+  // Export data for downloads
+  generateInventoryCSV(): string {
+    const inventory = localStorageService.getItem<InventoryItem[]>('inventory') || [];
+    const headers = ['Name', 'Category', 'Vendor', 'Unit Price (KSh)', 'Current Stock', 'Reorder Point', 'Min Stock', 'Total Value (KSh)', 'Last Updated', 'Updated By'];
+    
+    const rows = inventory.map(item => [
+      item.name,
+      item.category,
+      item.vendor,
+      item.unitPrice.toFixed(2),
+      item.currentStock.toString(),
+      item.reorderPoint.toString(),
+      (item.minStock || 0).toString(),
+      (item.unitPrice * item.currentStock).toFixed(2),
+      item.lastUpdated.toLocaleDateString(),
+      item.updatedBy
+    ]);
+
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  generateNewlyPurchasedCSV(): string {
+    const pendingItems = this.getPendingInventoryItems();
+    const headers = ['Item Name', 'Category', 'Vendor', 'Unit Price (KSh)', 'Quantity Ordered', 'Total Cost (KSh)', 'Order Date'];
+    
+    const rows = pendingItems.map(item => [
+      item.name,
+      item.category,
+      item.vendor,
+      item.unitPrice.toFixed(2),
+      item.quantity.toString(),
+      (item.unitPrice * item.quantity).toFixed(2),
+      item.lastUpdated.toLocaleDateString()
+    ]);
+
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  generateBOMRequirementsCSV(teamFilter?: string): string {
+    const boms = localStorageService.getItem<BillOfMaterials[]>('bom-data') || [];
+    const filteredBOMs = teamFilter ? boms.filter(bom => bom.team === teamFilter) : boms;
+    
+    const headers = ['Team', 'Item Name', 'Part Number', 'Category', 'Required Quantity', 'Available Stock', 'Shortfall', 'Unit Price (KSh)', 'Total Cost (KSh)', 'Vendor'];
+    
+    const rows: string[][] = [];
+    filteredBOMs.forEach(bom => {
+      bom.items?.forEach(item => {
+        rows.push([
+          bom.team,
+          item.itemName,
+          item.partNumber || '',
+          item.category || '',
+          item.requiredQuantity.toString(),
+          (item.availableStock || 0).toString(),
+          (item.shortfall || 0).toString(),
+          item.unitPrice.toFixed(2),
+          (item.unitPrice * item.requiredQuantity).toFixed(2),
+          item.vendor
+        ]);
+      });
+    });
+
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }
+
+  generateReplacementItemsCSV(): string {
+    const inventory = localStorageService.getItem<InventoryItem[]>('inventory') || [];
+    const replacementItems = inventory.filter(item => 
+      item.currentStock <= (item.minStock || 0) ||
+      item.currentStock <= item.reorderPoint
     );
-
-    return lowStockItems.map(item => ({
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      itemName: item.name,
-      title: `Low Stock Reorder: ${item.name}`,
-      description: `Automatic reorder for low stock item`,
-      type: 'Reorder',
-      unitPrice: item.unitPrice,
-      quantity: Math.max(item.reorderPoint * 2, 10), // Order double the reorder point
-      urgency: item.currentStock === 0 ? 'critical' : 'high',
-      vendor: item.vendor,
-      requestedBy: 'Auto System',
-      requestedDate: new Date(),
-      status: 'pending',
-      team: this.inferTeamFromCategory(item.category),
-      notes: `Auto-generated for low stock. Current: ${item.currentStock}, Min: ${item.minStock || item.reorderPoint}`,
-      isLowStockItem: true,
-      eisenhowerQuadrant: item.currentStock === 0 ? 'important-urgent' : 'important-not-urgent'
-    }));
-  }
-
-  /**
-   * Synchronizes purchase lists with vendor information
-   */
-  static async syncPurchaseListsWithVendors(): Promise<void> {
-    const purchaseLists = localStorageService.getItem<PurchaseList[]>('purchaseLists') || [];
-    const vendors = localStorageService.getItem<any[]>('vendors') || [];
-
-    // Update lists to ensure vendor information is current
-    const updatedLists = purchaseLists.map(list => ({
-      ...list,
-      vendors: list.vendors.filter(vendorId => 
-        vendors.some((v: any) => v.id === vendorId)
-      )
-    }));
-
-    localStorageService.setItem('purchaseLists', updatedLists);
-  }
-
-  /**
-   * Helper method to infer category from team
-   */
-  private static inferCategoryFromTeam(team: string): string {
-    switch (team.toLowerCase()) {
-      case 'avionics':
-        return 'Electronics';
-      case 'mechanical':
-        return 'Mechanical';
-      case 'software':
-        return 'Software';
-      case 'testing':
-        return 'Testing Equipment';
-      case 'telemetry':
-        return 'Electronics';
-      case 'parachute':
-        return 'Materials';
-      case 'recovery':
-        return 'Materials';
-      default:
-        return 'General';
-    }
-  }
-
-  /**
-   * Helper method to infer team from category
-   */
-  private static inferTeamFromCategory(category: string): any {
-    switch (category.toLowerCase()) {
-      case 'electronics':
-        return 'Avionics';
-      case 'mechanical':
-        return 'Mechanical';
-      case 'software':
-        return 'Software';
-      case 'testing equipment':
-        return 'Testing';
-      case 'materials':
-        return 'Mechanical';
-      default:
-        return 'Avionics';
-    }
-  }
-
-  /**
-   * Initialize automatic synchronization with periodic intervals
-   */
-  static initializeAutoSync(): void {
-    // Run initial sync
-    this.fullSync().catch(console.error);
     
-    // Set up periodic sync
-    setInterval(() => {
-      this.fullSync().catch(console.error);
-    }, SystemConfig.defaults.autoSyncInterval);
+    const headers = ['Item Name', 'Category', 'Current Stock', 'Min Stock', 'Reorder Point', 'Recommended Order Qty', 'Unit Price (KSh)', 'Total Cost (KSh)', 'Vendor', 'Priority'];
     
-    console.log('Automatic synchronization initialized');
-  }
+    const rows = replacementItems.map(item => {
+      const recommendedQty = Math.max(item.reorderPoint * 2, (item.minStock || 0) * 3) - item.currentStock;
+      return [
+        item.name,
+        item.category,
+        item.currentStock.toString(),
+        (item.minStock || 0).toString(),
+        item.reorderPoint.toString(),
+        recommendedQty.toString(),
+        item.unitPrice.toFixed(2),
+        (item.unitPrice * recommendedQty).toFixed(2),
+        item.vendor,
+        item.priority || 'normal'
+      ];
+    });
 
-  /**
-   * Full system synchronization - call this periodically
-   */
-  static async fullSync(): Promise<void> {
-    // Sync purchase lists with vendors
-    await this.syncPurchaseListsWithVendors();
-
-    // Generate low stock purchase requests
-    const lowStockRequests = await this.generateLowStockPurchaseRequests();
-    
-    if (lowStockRequests.length > 0) {
-      const existingRequests = localStorageService.getItem<PurchaseRequest[]>('purchaseRequests') || [];
-      
-      // Only add requests that don't already exist
-      const newRequests = lowStockRequests.filter(newReq => 
-        !existingRequests.some(existing => 
-          existing.itemName === newReq.itemName && 
-          existing.vendor === newReq.vendor &&
-          existing.status === 'pending' &&
-          existing.isLowStockItem
-        )
-      );
-
-      if (newRequests.length > 0) {
-        localStorageService.setItem('purchaseRequests', [...existingRequests, ...newRequests]);
-      }
-    }
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
   }
 }
 
-// Auto-sync every 30 seconds when the app is active
-if (typeof window !== 'undefined') {
-  setInterval(() => {
-    SyncService.fullSync();
-  }, 30000);
-}
+export const syncService = new SyncService();

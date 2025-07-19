@@ -9,7 +9,7 @@ const mockInventoryData: InventoryItem[] = [
     name: 'Carbon Fiber Sheets',
     category: 'Materials',
     vendor: 'Aerospace Supplies Co.',
-    unitPrice: 150.00,
+    unitPrice: 15000, // KSh 15,000
     currentStock: 5,
     quantity: 5,
     reorderPoint: 10,
@@ -25,7 +25,7 @@ const mockInventoryData: InventoryItem[] = [
     name: 'Altimeter Sensors',
     category: 'Electronics',
     vendor: 'Flight Electronics Inc.',
-    unitPrice: 75.00,
+    unitPrice: 7500, // KSh 7,500
     currentStock: 15,
     quantity: 15,
     reorderPoint: 5,
@@ -41,7 +41,7 @@ const mockInventoryData: InventoryItem[] = [
     name: 'Parachute Cord',
     category: 'Recovery',
     vendor: 'Parachute Systems LLC',
-    unitPrice: 25.00,
+    unitPrice: 2500, // KSh 2,500
     currentStock: 100,
     quantity: 100,
     reorderPoint: 50,
@@ -57,7 +57,7 @@ const mockInventoryData: InventoryItem[] = [
     name: 'Telemetry Transmitters',
     category: 'Electronics',
     vendor: 'Radio Systems Co.',
-    unitPrice: 200.00,
+    unitPrice: 20000, // KSh 20,000
     currentStock: 8,
     quantity: 8,
     reorderPoint: 3,
