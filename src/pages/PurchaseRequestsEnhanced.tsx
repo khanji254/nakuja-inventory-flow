@@ -146,7 +146,7 @@ const PurchaseRequests = () => {
   };
 
   const generatePurchaseListText = (list: PurchaseList) => {
-    const vendorName = vendors.find(v => v.id === list.vendor)?.name || 'Unknown Vendor';
+    const vendorName = list.vendors.length > 0 ? vendors.find(v => v.id === list.vendors[0])?.name || 'Unknown Vendor' : 'Multiple Vendors';
     const total = list.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
     
     let text = `Hi Dr Patrick.... I wanted to make the purchase from ${vendorName}... Here is a list\n\n`;
@@ -199,14 +199,31 @@ const PurchaseRequests = () => {
       const vendor = vendors.find(v => v.id === vendorId);
       const vendorName = vendor?.name || 'Unknown Vendor';
       
+      // Convert PurchaseRequest to PurchaseListItem
+      const purchaseListItems = vendorRequests.map(request => ({
+        id: request.id,
+        requestId: request.id,
+        itemName: request.itemName,
+        description: request.notes,
+        quantity: request.quantity,
+        unitPrice: request.unitPrice,
+        totalPrice: request.quantity * request.unitPrice,
+        vendor: request.vendor,
+        category: 'Mixed',
+        urgency: request.urgency,
+        notes: request.notes,
+        status: 'pending' as const,
+        team: request.team
+      }));
+      
       createListMutation.mutate({
         title: `${vendorName} Purchase List`,
         description: `Auto-generated from approved requests`,
         team: vendorRequests[0].team,
         category: 'Mixed',
         color: '#10B981',
-        vendor: vendorId,
-        items: vendorRequests,
+        vendors: [vendorId],
+        items: purchaseListItems,
         status: 'approved',
         createdBy: 'Current User',
         notes: 'Auto-generated from approved purchase requests'
@@ -415,11 +432,19 @@ const PurchaseRequests = () => {
 
                 <CSVImportExport
                   data={filteredRequests}
-                  filename="purchase-requests"
-                  onImport={(data) => {
-                    bulkImportMutation.mutate(data as PurchaseRequest[], {
-                      onSuccess: () => toast({ title: 'Requests imported successfully' }),
-                      onError: () => toast({ title: 'Import failed', variant: 'destructive' })
+                  type="purchase-requests"
+                  onImport={async (data) => {
+                    return new Promise<void>((resolve, reject) => {
+                      bulkImportMutation.mutate(data as PurchaseRequest[], {
+                        onSuccess: () => {
+                          toast({ title: 'Requests imported successfully' });
+                          resolve();
+                        },
+                        onError: () => {
+                          toast({ title: 'Import failed', variant: 'destructive' });
+                          reject();
+                        }
+                      });
                     });
                   }}
                 />
@@ -571,7 +596,7 @@ const PurchaseRequests = () => {
             <CardContent>
               <div className="grid gap-4">
                 {purchaseLists.map((list) => {
-                  const vendor = vendors.find(v => v.id === list.vendor);
+                  const vendor = list.vendors.length > 0 ? vendors.find(v => v.id === list.vendors[0]) : null;
                   return (
                     <Card key={list.id} className="border-l-4" style={{ borderLeftColor: list.color }}>
                       <CardHeader className="pb-3">

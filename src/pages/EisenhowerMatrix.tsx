@@ -257,14 +257,15 @@ const EisenhowerMatrix = () => {
                                 </Badge>
                               </div>
                               <h4 className="font-medium text-sm leading-tight mb-1">
-                                {item.title || item.itemName}
+                                {item.title || ('itemName' in item ? item.itemName : 'Unknown Item')}
                               </h4>
                               <p className="text-xs text-muted-foreground line-clamp-2">
-                                {item.description || item.notes || `${item.quantity}x at $${item.unitPrice?.toFixed(2)}`}
+                                {item.description || ('notes' in item ? item.notes : '') || 
+                                 ('quantity' in item && 'unitPrice' in item ? `${item.quantity}x at $${item.unitPrice?.toFixed(2)}` : '')}
                               </p>
-                              {item.unitPrice && (
+                              {'unitPrice' in item && item.unitPrice && (
                                 <div className="mt-2 text-sm font-medium">
-                                  ${(item.unitPrice * (item.quantity || 1)).toFixed(2)}
+                                  ${(item.unitPrice * (('quantity' in item && item.quantity) || 1)).toFixed(2)}
                                 </div>
                               )}
                             </div>
@@ -294,8 +295,12 @@ const EisenhowerMatrix = () => {
             {Object.entries(quadrants).map(([key, quadrant]) => {
               const itemCount = getItemsByQuadrant(key).length;
               const totalValue = getItemsByQuadrant(key)
-                .filter(item => item.unitPrice)
-                .reduce((sum, item) => sum + (item.unitPrice * (item.quantity || 1)), 0);
+                .filter(item => 'unitPrice' in item && item.unitPrice)
+                .reduce((sum, item) => {
+                  const price = 'unitPrice' in item ? item.unitPrice || 0 : 0;
+                  const quantity = 'quantity' in item ? item.quantity || 1 : 1;
+                  return sum + (price * quantity);
+                }, 0);
               
               return (
                 <div key={key} className="text-center">

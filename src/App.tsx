@@ -19,9 +19,6 @@ import { syncService } from "./lib/sync-service";
 
 const queryClient = new QueryClient();
 
-// Initialize automatic synchronization
-SyncService.initializeAutoSync();
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
