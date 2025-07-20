@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InventoryForm } from '@/components/inventory/InventoryForm';
 import CSVImportExport from '@/components/ui/csv-import-export';
+import PendingInventoryManager from '@/components/inventory/PendingInventoryManager';
 import { useInventoryData, useDeleteInventoryItem, useBulkImportInventory } from '@/hooks/useInventoryData';
 import { usePendingInventory } from '@/hooks/usePendingInventory';
 import { InventoryItem } from '@/types';
@@ -145,6 +146,9 @@ const Inventory = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Inventory Section */}
+      <PendingInventoryManager />
 
       <Card>
         <CardHeader>
