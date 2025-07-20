@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Download, Upload, CheckCircle, XCircle, Clock, AlertTriangle, Copy, Eye, EyeOff, Palette, Edit3, Trash2, Package, ShoppingBag, FileText } from 'lucide-react';
+import { Plus, Search, Filter, Download, Upload, CheckCircle, XCircle, Clock, AlertTriangle, Copy, Eye, EyeOff, Palette, Edit3, Trash2, Package, ShoppingBag, FileText, FolderPlus, Merge, Split, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +41,18 @@ const PurchaseRequests = () => {
   const [selectedList, setSelectedList] = useState<PurchaseList | null>(null);
   const [showLowStock, setShowLowStock] = useState(true);
   const [activeTab, setActiveTab] = useState('requests');
+  
+  // Custom request lists state
+  const [isCustomListDialogOpen, setIsCustomListDialogOpen] = useState(false);
+  const [isCombineDialogOpen, setIsCombineDialogOpen] = useState(false);
+  const [selectedCustomLists, setSelectedCustomLists] = useState<string[]>([]);
+  const [customRequestLists, setCustomRequestLists] = useState<any[]>([]);
+  const [customListFormData, setCustomListFormData] = useState({
+    name: '',
+    description: '',
+    color: '#3B82F6',
+    category: ''
+  });
   
   // States for item management
   const [isDraftDialogOpen, setIsDraftDialogOpen] = useState(false);
@@ -299,6 +311,102 @@ const PurchaseRequests = () => {
     toast({ title: 'Purchase lists created from approved requests!' });
   };
 
+  // Custom request list management functions
+  const handleCreateCustomList = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!customListFormData.name) {
+      toast({ title: 'Please enter a list name', variant: 'destructive' });
+      return;
+    }
+
+    const newCustomList = {
+      id: `custom-${Date.now()}`,
+      name: customListFormData.name,
+      description: customListFormData.description,
+      color: customListFormData.color,
+      category: customListFormData.category || 'General',
+      requests: [],
+      createdAt: new Date(),
+      createdBy: 'Current User'
+    };
+
+    setCustomRequestLists(prev => [...prev, newCustomList]);
+    toast({ title: 'Custom request list created successfully!' });
+    setIsCustomListDialogOpen(false);
+    setCustomListFormData({ name: '', description: '', color: '#3B82F6', category: '' });
+  };
+
+  const handleDeleteCustomList = (listId: string) => {
+    setCustomRequestLists(prev => prev.filter(list => list.id !== listId));
+    toast({ title: 'Custom list deleted successfully!' });
+  };
+
+  const handleCombineLists = () => {
+    if (selectedCustomLists.length < 2) {
+      toast({ title: 'Please select at least 2 lists to combine', variant: 'destructive' });
+      return;
+    }
+
+    const listsToMerge = customRequestLists.filter(list => selectedCustomLists.includes(list.id));
+    const combinedRequests = listsToMerge.flatMap(list => list.requests);
+    
+    const combinedList = {
+      id: `combined-${Date.now()}`,
+      name: `Combined List (${listsToMerge.map(l => l.name).join(', ')})`,
+      description: `Combined from: ${listsToMerge.map(l => l.name).join(', ')}`,
+      color: listsToMerge[0].color,
+      category: 'Combined',
+      requests: combinedRequests,
+      createdAt: new Date(),
+      createdBy: 'Current User'
+    };
+
+    setCustomRequestLists(prev => [
+      ...prev.filter(list => !selectedCustomLists.includes(list.id)),
+      combinedList
+    ]);
+    
+    setSelectedCustomLists([]);
+    setIsCombineDialogOpen(false);
+    toast({ title: 'Lists combined successfully!' });
+  };
+
+  const handleSeparateList = (listId: string) => {
+    const listToSeparate = customRequestLists.find(list => list.id === listId);
+    if (!listToSeparate || listToSeparate.requests.length === 0) {
+      toast({ title: 'Cannot separate empty list', variant: 'destructive' });
+      return;
+    }
+
+    const separatedLists = listToSeparate.requests.map((request: any, index: number) => ({
+      id: `separated-${Date.now()}-${index}`,
+      name: `${listToSeparate.name} - Item ${index + 1}`,
+      description: `Separated from ${listToSeparate.name}: ${request.itemName}`,
+      color: listToSeparate.color,
+      category: listToSeparate.category,
+      requests: [request],
+      createdAt: new Date(),
+      createdBy: 'Current User'
+    }));
+
+    setCustomRequestLists(prev => [
+      ...prev.filter(list => list.id !== listId),
+      ...separatedLists
+    ]);
+    
+    toast({ title: 'List separated successfully!' });
+  };
+
+  const handleMoveRequestToCustomList = (request: PurchaseRequest, customListId: string) => {
+    setCustomRequestLists(prev => prev.map(list => 
+      list.id === customListId 
+        ? { ...list, requests: [...list.requests, request] }
+        : list
+    ));
+    toast({ title: 'Request moved to custom list!' });
+  };
+
   const getStatusIcon = (status: PurchaseRequest['status']) => {
     switch (status) {
       case 'pending': return <Clock className="h-4 w-4" />;
@@ -340,6 +448,10 @@ const PurchaseRequests = () => {
           <p className="text-muted-foreground">Manage purchase requests and automated ordering lists</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setIsCustomListDialogOpen(true)} variant="outline">
+            <FolderPlus className="h-4 w-4 mr-2" />
+            New Custom List
+          </Button>
           <Button onClick={createListFromApproved} variant="outline">
             <FileText className="h-4 w-4 mr-2" />
             Create Lists from Approved
@@ -446,6 +558,7 @@ const PurchaseRequests = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="requests">Purchase Requests</TabsTrigger>
+          <TabsTrigger value="custom-lists">Custom Lists</TabsTrigger>
           <TabsTrigger value="lists">Purchase Lists</TabsTrigger>
           <TabsTrigger value="approved">Approved Tracking</TabsTrigger>
         </TabsList>
@@ -633,6 +746,26 @@ const PurchaseRequests = () => {
                                   Undo
                                 </Button>
                               )}
+                              {customRequestLists.length > 0 && (
+                                <Select onValueChange={(value) => handleMoveRequestToCustomList(request, value)}>
+                                  <SelectTrigger className="w-32 h-8">
+                                    <SelectValue placeholder="Add to list" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {customRequestLists.map((customList) => (
+                                      <SelectItem key={customList.id} value={customList.id}>
+                                        <div className="flex items-center gap-2">
+                                          <div 
+                                            className="w-3 h-3 rounded" 
+                                            style={{ backgroundColor: customList.color }}
+                                          />
+                                          {customList.name}
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -641,6 +774,113 @@ const PurchaseRequests = () => {
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="custom-lists" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Custom Request Lists</CardTitle>
+                  <CardDescription>Organize purchase requests into custom categories</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  {selectedCustomLists.length > 1 && (
+                    <Button onClick={() => setIsCombineDialogOpen(true)} variant="outline" size="sm">
+                      <Merge className="h-4 w-4 mr-2" />
+                      Combine Selected
+                    </Button>
+                  )}
+                  <Button onClick={() => setIsCustomListDialogOpen(true)} size="sm">
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                    New Custom List
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4">
+                {customRequestLists.map((customList) => (
+                  <Card key={customList.id} className="border-l-4" style={{ borderLeftColor: customList.color }}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedCustomLists.includes(customList.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedCustomLists(prev => [...prev, customList.id]);
+                              } else {
+                                setSelectedCustomLists(prev => prev.filter(id => id !== customList.id));
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <div>
+                            <CardTitle className="text-lg">{customList.name}</CardTitle>
+                            <CardDescription>
+                              {customList.description} • {customList.requests.length} requests
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge style={{ backgroundColor: customList.color, color: 'white' }}>
+                            {customList.category}
+                          </Badge>
+                          {customList.requests.length > 1 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSeparateList(customList.id)}
+                            >
+                              <Split className="h-4 w-4 mr-2" />
+                              Separate
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteCustomList(customList.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {customList.requests.map((request: any) => (
+                          <div key={request.id} className="flex justify-between items-center text-sm p-2 bg-muted rounded">
+                            <div>
+                              <span className="font-medium">{request.itemName}</span>
+                              <span className="text-muted-foreground ml-2">({request.quantity}x)</span>
+                            </div>
+                            <Badge className={getUrgencyColor(request.urgency)}>
+                              {request.urgency}
+                            </Badge>
+                          </div>
+                        ))}
+                        {customList.requests.length === 0 && (
+                          <div className="text-sm text-muted-foreground text-center py-4">
+                            No requests in this list yet. Drag requests from the main list to add them.
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {customRequestLists.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <List className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No custom lists created yet.</p>
+                    <p className="text-sm">Create your first custom list to organize purchase requests.</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1182,6 +1422,118 @@ const PurchaseRequests = () => {
               Close
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom List Creation Dialog */}
+      <Dialog open={isCustomListDialogOpen} onOpenChange={setIsCustomListDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Custom Request List</DialogTitle>
+            <DialogDescription>
+              Create a custom list to organize your purchase requests
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateCustomList} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="customListName">List Name *</Label>
+              <Input
+                id="customListName"
+                value={customListFormData.name}
+                onChange={(e) => setCustomListFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g., Electronics Components"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customListDescription">Description</Label>
+              <Textarea
+                id="customListDescription"
+                value={customListFormData.description}
+                onChange={(e) => setCustomListFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Optional description for this list"
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customListCategory">Category</Label>
+              <Input
+                id="customListCategory"
+                value={customListFormData.category}
+                onChange={(e) => setCustomListFormData(prev => ({ ...prev, category: e.target.value }))}
+                placeholder="e.g., Electronics, Tools, Materials"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customListColor">Color</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  id="customListColor"
+                  value={customListFormData.color}
+                  onChange={(e) => setCustomListFormData(prev => ({ ...prev, color: e.target.value }))}
+                  className="w-12 h-8 rounded border"
+                />
+                <Input
+                  value={customListFormData.color}
+                  onChange={(e) => setCustomListFormData(prev => ({ ...prev, color: e.target.value }))}
+                  placeholder="#3B82F6"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCustomListDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                Create List
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Combine Lists Dialog */}
+      <Dialog open={isCombineDialogOpen} onOpenChange={setIsCombineDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Combine Selected Lists</DialogTitle>
+            <DialogDescription>
+              Combine {selectedCustomLists.length} selected lists into one
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm">
+              <strong>Selected Lists:</strong>
+              <ul className="mt-2 space-y-1">
+                {selectedCustomLists.map(listId => {
+                  const list = customRequestLists.find(l => l.id === listId);
+                  return (
+                    <li key={listId} className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded" 
+                        style={{ backgroundColor: list?.color }}
+                      />
+                      {list?.name} ({list?.requests.length} requests)
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              All requests from the selected lists will be merged into a new combined list. 
+              The original lists will be deleted.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCombineDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCombineLists}>
+              Combine Lists
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
