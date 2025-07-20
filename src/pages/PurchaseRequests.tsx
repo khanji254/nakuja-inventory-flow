@@ -29,6 +29,7 @@ import {
 } from '@/hooks/usePurchaseRequests';
 import { useVendors } from '@/hooks/useVendors';
 import { useToast } from '@/hooks/use-toast';
+import { useMoveToPendingInventory } from '@/hooks/usePendingInventory';
 import { PurchaseRequest, PurchaseList, PurchaseListItem, Team } from '@/types';
 
 const PurchaseRequests = () => {
@@ -61,6 +62,7 @@ const PurchaseRequests = () => {
   const addItemMutation = useAddItemToList();
   const updateItemMutation = useUpdateListItem();
   const removeItemMutation = useRemoveItemFromList();
+  const moveToPendingMutation = useMoveToPendingInventory();
   
   const { toast } = useToast();
 
@@ -228,6 +230,17 @@ const PurchaseRequests = () => {
       toast({ title: 'Purchase list copied to clipboard!' });
     }).catch(() => {
       toast({ title: 'Failed to copy to clipboard', variant: 'destructive' });
+    });
+  };
+
+  const handleMoveToPending = (request: PurchaseRequest) => {
+    moveToPendingMutation.mutate(request, {
+      onSuccess: () => {
+        toast({ title: 'Item moved to pending inventory!' });
+      },
+      onError: () => {
+        toast({ title: 'Error moving item to pending inventory', variant: 'destructive' });
+      }
     });
   };
 
@@ -769,17 +782,21 @@ const PurchaseRequests = () => {
                                 Mark Completed
                               </Button>
                             )}
-                            {request.status === 'completed' && (
+                            {request.status === 'completed' && !request.movedToPending && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
-                                  // Move to inventory logic would go here
-                                  toast({ title: 'Item moved to inventory awaiting editing' });
-                                }}
+                                onClick={() => handleMoveToPending(request)}
+                                disabled={moveToPendingMutation.isPending}
                               >
-                                Move to Inventory
+                                <Package className="h-4 w-4 mr-1" />
+                                Move to Pending
                               </Button>
+                            )}
+                            {request.status === 'completed' && request.movedToPending && (
+                              <Badge variant="outline" className="text-green-600 border-green-300">
+                                Moved to Pending
+                              </Badge>
                             )}
                           </div>
                         </TableCell>
