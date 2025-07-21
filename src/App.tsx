@@ -4,9 +4,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
-import PurchaseRequests from "./pages/PurchaseRequests";
+import PurchaseRequests from "./pages/PurchaseRequestsEnhanced";
 import BOM from "./pages/BOM";
 import Vendors from "./pages/Vendors";
 import EisenhowerMatrix from "./pages/EisenhowerMatrix";
@@ -16,7 +17,18 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -28,7 +40,11 @@ const App = () => (
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="inventory" element={<Inventory />} />
-            <Route path="purchase-requests" element={<PurchaseRequests />} />
+            <Route path="purchase-requests" element={
+              <ErrorBoundary>
+                <PurchaseRequests />
+              </ErrorBoundary>
+            } />
             <Route path="bom" element={<BOM />} />
             <Route path="vendors" element={<Vendors />} />
             <Route path="eisenhower" element={<EisenhowerMatrix />} />

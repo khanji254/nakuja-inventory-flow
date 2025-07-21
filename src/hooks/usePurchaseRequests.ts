@@ -545,12 +545,19 @@ export const useLowStockItems = () => {
   const { data: inventoryItems } = useQuery({
     queryKey: ['inventory-items'],
     queryFn: () => {
-      const stored = localStorageService.getItem('inventoryItems');
-      if (Array.isArray(stored)) {
-        return stored.filter((item: any) => item.currentStock <= (item.reorderPoint || item.minStock || 10));
+      try {
+        const stored = localStorageService.getItem('inventoryItems');
+        if (Array.isArray(stored)) {
+          return stored.filter((item: any) => item.currentStock <= (item.reorderPoint || item.minStock || 10));
+        }
+        return [];
+      } catch (error) {
+        console.error('Error loading inventory items:', error);
+        return [];
       }
-      return [];
     },
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
   
   return inventoryItems || [];

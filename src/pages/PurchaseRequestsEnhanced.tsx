@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { VendorSelect } from '@/components/ui/vendor-select';
 import { Switch } from '@/components/ui/switch';
-import CSVImportExport from '@/components/ui/csv-import-export';
+import { CSVImportExport } from '@/components/ui/csv-import-export';
 import { 
   usePurchaseRequests, 
   useAddPurchaseRequest, 
@@ -26,6 +26,7 @@ import {
 } from '@/hooks/usePurchaseRequests';
 import { useVendors } from '@/hooks/useVendors';
 import { useToast } from '@/hooks/use-toast';
+import { useMoveToPendingInventory } from '@/hooks/usePendingInventory';
 import { PurchaseRequest, PurchaseList, Team } from '@/types';
 
 const PurchaseRequests = () => {
@@ -47,6 +48,7 @@ const PurchaseRequests = () => {
   const createListMutation = useCreatePurchaseList();
   const updateListMutation = useUpdatePurchaseList();
   const bulkImportMutation = useBulkImportPurchaseRequests();
+  const moveToPendingMutation = useMoveToPendingInventory();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -72,24 +74,23 @@ const PurchaseRequests = () => {
 
   // Filter requests
   const filteredRequests = requests.filter(request => {
-    const matchesSearch = request.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.requestedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
-    const matchesTeam = teamFilter === 'all' || request.team === teamFilter;
-    const matchesLowStock = !showLowStock || request.isLowStockItem;
+    const matchesSearch = request?.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         request?.vendor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         request?.requestedBy?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || request?.status === statusFilter;
+    const matchesTeam = teamFilter === 'all' || request?.team === teamFilter;
     
-    return matchesSearch && matchesStatus && matchesTeam && (!showLowStock || matchesLowStock);
+    return matchesSearch && matchesStatus && matchesTeam;
   });
 
   // Status counts
   const statusCounts = {
-    pending: requests.filter(r => r.status === 'pending').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    rejected: requests.filter(r => r.status === 'rejected').length,
-    ordered: requests.filter(r => r.status === 'ordered').length,
-    completed: requests.filter(r => r.status === 'completed').length,
-    lowStock: requests.filter(r => r.isLowStockItem).length
+    pending: requests.filter(r => r?.status === 'pending').length,
+    approved: requests.filter(r => r?.status === 'approved').length,
+    rejected: requests.filter(r => r?.status === 'rejected').length,
+    ordered: requests.filter(r => r?.status === 'ordered').length,
+    completed: requests.filter(r => r?.status === 'completed').length,
+    lowStock: requests.filter(r => r?.isLowStockItem).length
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -141,6 +142,17 @@ const PurchaseRequests = () => {
       },
       onError: () => {
         toast({ title: `Error updating request status`, variant: 'destructive' });
+      }
+    });
+  };
+
+  const handleMoveToPending = (request: PurchaseRequest) => {
+    moveToPendingMutation.mutate(request, {
+      onSuccess: () => {
+        toast({ title: 'Item moved to pending inventory!' });
+      },
+      onError: () => {
+        toast({ title: 'Error moving item to pending inventory', variant: 'destructive' });
       }
     });
   };
@@ -226,6 +238,7 @@ const PurchaseRequests = () => {
         items: purchaseListItems,
         status: 'approved',
         createdBy: 'Current User',
+        approvedDate: new Date(),
         notes: 'Auto-generated from approved purchase requests'
       });
     });
@@ -713,17 +726,21 @@ const PurchaseRequests = () => {
                                 Mark Completed
                               </Button>
                             )}
-                            {request.status === 'completed' && (
+                            {request.status === 'completed' && !request.movedToPending && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
-                                  // Move to inventory logic would go here
-                                  toast({ title: 'Item moved to inventory awaiting editing' });
-                                }}
+                                onClick={() => handleMoveToPending(request)}
+                                disabled={moveToPendingMutation.isPending}
                               >
-                                Move to Inventory
+                                <Package className="h-4 w-4 mr-1" />
+                                Move to Pending
                               </Button>
+                            )}
+                            {request.status === 'completed' && request.movedToPending && (
+                              <Badge variant="outline" className="text-green-600 border-green-300">
+                                Moved to Pending
+                              </Badge>
                             )}
                           </div>
                         </TableCell>

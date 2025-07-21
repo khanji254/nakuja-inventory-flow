@@ -59,13 +59,13 @@ class SyncService {
     localStorageService.setItem('pending-inventory', pendingItems);
 
     // Update purchase request to mark as processed
-    const purchaseRequests = localStorageService.getItem<PurchaseRequest[]>('purchase-requests') || [];
+    const purchaseRequests = localStorageService.getItem<PurchaseRequest[]>('purchaseRequests') || [];
     const updatedRequests = purchaseRequests.map(req => 
       req.id === purchaseRequest.id 
         ? { ...req, notes: (req.notes || '') + '\n[Moved to pending inventory]', movedToPending: true }
         : req
     );
-    localStorageService.setItem('purchase-requests', updatedRequests);
+    localStorageService.setItem('purchaseRequests', updatedRequests);
 
     // Notify listeners
     this.notify('pending-inventory');
