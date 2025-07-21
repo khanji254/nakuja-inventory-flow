@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ArrowRight, Clock, AlertTriangle, CheckCircle2, X } from 'lucide-react';
+import { Plus, ArrowRight, Clock, AlertTriangle, CheckCircle2, X, Users, Calendar, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,8 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePurchaseRequests } from '@/hooks/usePurchaseRequests';
 import { useInventoryData } from '@/hooks/useInventoryData';
+import TeamManagement from '@/components/team/TeamManagement';
+import GanttChart from '@/components/gantt/GanttChart';
+import TaskAllocation from '@/components/tasks/TaskAllocation';
+import NotionTaskStatus from '@/components/tasks/NotionTaskStatus';
+import PDFExport from '@/components/export/PDFExport';
 
 const EisenhowerMatrix = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -143,9 +149,9 @@ const EisenhowerMatrix = () => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Eisenhower Priority Matrix</h1>
+          <h1 className="text-3xl font-bold">Eisenhower Priority Matrix & Team Management</h1>
           <p className="text-muted-foreground">
-            Prioritize purchases, inventory tasks, and project activities using the Eisenhower Matrix
+            Prioritize tasks, manage teams, and track project timelines
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -217,7 +223,18 @@ const EisenhowerMatrix = () => {
         </Dialog>
       </div>
 
-      {/* Matrix Grid */}
+      <Tabs defaultValue="matrix" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="matrix">Matrix</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger value="gantt">Gantt</TabsTrigger>
+          <TabsTrigger value="allocation">Tasks</TabsTrigger>
+          <TabsTrigger value="status">Status</TabsTrigger>
+          <TabsTrigger value="export">Export</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="matrix" className="space-y-6">
+          {/* Matrix Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {Object.entries(quadrants).map(([key, quadrant]) => {
           const items = getItemsByQuadrant(key);
@@ -315,6 +332,28 @@ const EisenhowerMatrix = () => {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="team">
+          <TeamManagement />
+        </TabsContent>
+
+        <TabsContent value="gantt" id="gantt-chart">
+          <GanttChart />
+        </TabsContent>
+
+        <TabsContent value="allocation" id="task-allocation">
+          <TaskAllocation />
+        </TabsContent>
+
+        <TabsContent value="status">
+          <NotionTaskStatus />
+        </TabsContent>
+
+        <TabsContent value="export">
+          <PDFExport />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
