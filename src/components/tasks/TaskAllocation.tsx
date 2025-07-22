@@ -79,7 +79,7 @@ const TaskAllocation: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
+              <Select value={filter} onValueChange={(value: string) => setFilter(value)}>
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>

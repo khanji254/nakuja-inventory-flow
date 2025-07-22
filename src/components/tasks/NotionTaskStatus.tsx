@@ -87,7 +87,7 @@ const NotionTaskStatus: React.FC = () => {
               <div className="text-sm text-muted-foreground">Notion-style task tracking</div>
             </div>
           </div>
-          <Select value={selectedStatus} onValueChange={(value: any) => setSelectedStatus(value)}>
+          <Select value={selectedStatus} onValueChange={(value: string) => setSelectedStatus(value)}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>

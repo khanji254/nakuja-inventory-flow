@@ -42,7 +42,7 @@ const PurchaseRequests = () => {
   const { data: requests = [], isLoading } = usePurchaseRequests();
   const { data: purchaseLists = [] } = usePurchaseLists();
   const { data: vendors = [] } = useVendors();
-  const lowStockItems = useLowStockItems();
+  const lowStockItems = useLowStockItems() || [];
   const addRequestMutation = useAddPurchaseRequest();
   const updateStatusMutation = useUpdateRequestStatus();
   const createListMutation = useCreatePurchaseList();
@@ -303,7 +303,7 @@ const PurchaseRequests = () => {
       </div>
 
       {/* Low Stock Alert */}
-      {lowStockItems.length > 0 && (
+      {lowStockItems && lowStockItems.length > 0 && (
         <Card className="border-orange-200 bg-orange-50">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -322,7 +322,7 @@ const PurchaseRequests = () => {
               {lowStockItems.length} items are running low on stock and may need to be ordered:
             </p>
             <div className="flex flex-wrap gap-2">
-              {lowStockItems.slice(0, 5).map((item: any) => (
+              {lowStockItems.slice(0, 5).map((item: { id: string; name: string; currentStock: number }) => (
                 <Badge key={item.id} variant="outline" className="text-orange-700 border-orange-300">
                   {item.name} ({item.currentStock} left)
                 </Badge>
@@ -815,7 +815,7 @@ const PurchaseRequests = () => {
               </div>
               <div className="space-y-2">
                 <Label>Urgency</Label>
-                <Select value={formData.urgency} onValueChange={(value) => setFormData({...formData, urgency: value as any})}>
+                <Select value={formData.urgency} onValueChange={(value) => setFormData({...formData, urgency: value as 'low' | 'medium' | 'high' | 'critical'})}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
