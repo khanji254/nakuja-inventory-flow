@@ -66,7 +66,7 @@ const TaskAllocation: React.FC = () => {
   const quadrants = ['important-urgent', 'important-not-urgent', 'not-important-urgent', 'not-important-not-urgent'];
 
   return (
-    <div className="space-y-6">
+    <div id="task-allocation" className="space-y-6">
       {/* Task Allocation Header */}
       <Card>
         <CardHeader>

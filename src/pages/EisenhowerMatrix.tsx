@@ -10,20 +10,40 @@ import TaskAllocation from '@/components/tasks/TaskAllocation';
 import NotionTaskStatus from '@/components/tasks/NotionTaskStatus';
 import PDFExport from '@/components/export/PDFExport';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { addDays, startOfWeek, endOfWeek, format } from 'date-fns';
 import useTeamManagement from '@/hooks/useTeamManagement';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+
+interface MatrixTask {
+  id: string;
+  title: string;
+  description: string;
+  assigneeId: string;
+  deadline: Date;
+  estimatedHours: number;
+}
+
+interface MatrixTasks {
+  'important-urgent': MatrixTask[];
+  'important-not-urgent': MatrixTask[];
+  'not-important-urgent': MatrixTask[];
+  'not-important-not-urgent': MatrixTask[];
+}
 
 const TeamManagementPage = () => {
   const { tasks: teamTasks, addTask, setTasks: setTeamTasks, teamMembers } = useTeamManagement();
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [activeTab, setActiveTab] = useState('matrix');
   
-  const [matrixTasks, setMatrixTasks] = useState({
+  const [matrixTasks, setMatrixTasks] = useState<MatrixTasks>({
     'important-urgent': [
       { id: '1', title: 'Fix critical system bug', description: 'Address the memory leak in the telemetry system', assigneeId: '', deadline: new Date(), estimatedHours: 8 },
       { id: '2', title: 'Launch preparation', description: 'Complete final system checks before launch', assigneeId: '', deadline: new Date(), estimatedHours: 16 }
@@ -109,6 +129,105 @@ const TeamManagementPage = () => {
     }));
   };
 
+  const exportGanttChart = async () => {
+    const ganttElement = document.getElementById('gantt-chart');
+    if (!ganttElement) {
+      console.error('Gantt chart element not found');
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(ganttElement, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('landscape', 'mm', 'a4');
+      
+      const imgWidth = 270;
+      const pageHeight = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      let position = 30;
+
+      // Add header
+      pdf.setFontSize(16);
+      pdf.text('Weekly Gantt Chart', 15, 15);
+      pdf.setFontSize(10);
+      pdf.text(`Week: ${format(startOfWeek(currentWeek), 'MMM dd')} - ${format(endOfWeek(currentWeek), 'MMM dd, yyyy')}`, 15, 22);
+      pdf.text(`Generated on ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, 15, 27);
+
+      // Add image
+      pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`gantt-chart-week-${format(currentWeek, 'yyyy-MM-dd')}.pdf`);
+    } catch (error) {
+      console.error('Error exporting Gantt chart:', error);
+    }
+  };
+
+  const exportMultipleWeeks = async (weeksCount: number = 4) => {
+    const pdf = new jsPDF('landscape', 'mm', 'a4');
+    let isFirstPage = true;
+
+    // Add title page
+    pdf.setFontSize(20);
+    pdf.text('Multi-Week Gantt Chart Report', 15, 20);
+    pdf.setFontSize(12);
+    pdf.text(`Generated on ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, 15, 30);
+    pdf.text(`Covering ${weeksCount} weeks starting from ${format(startOfWeek(currentWeek), 'MMM dd, yyyy')}`, 15, 40);
+
+    for (let i = 0; i < weeksCount; i++) {
+      const weekDate = addDays(currentWeek, i * 7);
+      
+      if (!isFirstPage) {
+        pdf.addPage();
+      } else {
+        isFirstPage = false;
+      }
+
+      // Add week header
+      pdf.setFontSize(14);
+      pdf.text(`Week ${i + 1}: ${format(startOfWeek(weekDate), 'MMM dd')} - ${format(endOfWeek(weekDate), 'MMM dd, yyyy')}`, 15, isFirstPage ? 60 : 20);
+
+      // Note: In a real implementation, you would capture the gantt chart for each week
+      // For now, we'll just add the current week's chart as an example
+      const ganttElement = document.getElementById('gantt-chart');
+      if (ganttElement) {
+        try {
+          const canvas = await html2canvas(ganttElement, {
+            scale: 1.5,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff'
+          });
+
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 250;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          pdf.addImage(imgData, 'PNG', 15, isFirstPage ? 70 : 30, imgWidth, Math.min(imgHeight, 150));
+        } catch (error) {
+          console.error(`Error capturing week ${i + 1}:`, error);
+        }
+      }
+    }
+
+    pdf.save(`gantt-chart-${weeksCount}-weeks-${format(currentWeek, 'yyyy-MM-dd')}.pdf`);
+  };
+
   const getPriorityFromQuadrant = (quadrant: string) => {
     switch (quadrant) {
       case 'important-urgent': return 'urgent' as const;
@@ -147,7 +266,7 @@ const TeamManagementPage = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="matrix" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="matrix">
               <Grid3X3 className="w-4 h-4 mr-2" />
@@ -268,7 +387,7 @@ const TeamManagementPage = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-6 h-[600px]">
+                <div id="eisenhower-matrix" className="grid grid-cols-2 gap-6 h-[600px]">
                   {/* Important & Urgent */}
                   <div className="border-2 border-red-200 rounded-lg p-4 bg-red-50">
                     <div className="flex items-center justify-between mb-4">
@@ -443,6 +562,28 @@ const TeamManagementPage = () => {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={exportGanttChart}>
+                        Current Week
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => exportMultipleWeeks(2)}>
+                        Next 2 Weeks
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => exportMultipleWeeks(4)}>
+                        Next 4 Weeks
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => exportMultipleWeeks(8)}>
+                        Next 8 Weeks
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -493,7 +634,7 @@ const TeamManagementPage = () => {
                 })}
               </div>
 
-              <GanttChart weekStart={currentWeek} />
+              <GanttChart weekStart={currentWeek} onExportPDF={exportGanttChart} />
               
               {/* Day Details */}
               <Card>
@@ -554,7 +695,7 @@ const TeamManagementPage = () => {
           </TabsContent>
 
           <TabsContent value="export" className="space-y-6">
-            <PDFExport />
+            <PDFExport matrixTasks={matrixTasks} currentWeek={currentWeek} onTabChange={setActiveTab} />
           </TabsContent>
         </Tabs>
       </div>
