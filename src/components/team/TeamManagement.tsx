@@ -10,32 +10,72 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import useTeamManagement, { TeamMember } from '@/hooks/useTeamManagement';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { User, Team, UserRole } from '@/types';
+
+// Mock users data - in real app this would come from a users API/hook
+const mockUsers: User[] = [
+  { id: 'u1', name: 'Alex Rodriguez', email: 'alex@nakuja.com', role: 'team-lead', team: 'Recovery', permissions: ['read', 'write', 'admin'] },
+  { id: 'u2', name: 'Sarah Kim', email: 'sarah@nakuja.com', role: 'team-member', team: 'Avionics', permissions: ['read', 'write'] },
+  { id: 'u3', name: 'Marcus Johnson', email: 'marcus@nakuja.com', role: 'team-member', team: 'Telemetry', permissions: ['read', 'write'] },
+  { id: 'u4', name: 'Emily Chen', email: 'emily@nakuja.com', role: 'team-member', team: 'Parachute', permissions: ['read', 'write'] },
+  { id: 'u5', name: 'David Kim', email: 'david@nakuja.com', role: 'team-member', team: 'Recovery', permissions: ['read', 'write'] },
+  { id: 'u6', name: 'Lisa Wang', email: 'lisa@nakuja.com', role: 'team-member', team: 'Avionics', permissions: ['read', 'write'] },
+];
 
 const TeamManagement: React.FC = () => {
   const { teamMembers, setTeamMembers, getMemberWorkload } = useTeamManagement();
+  const { data: currentUser } = useUserProfile();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [newMember, setNewMember] = useState<Partial<TeamMember>>({
-    name: '',
-    role: '',
-    team: 'Recovery',
-    skills: [],
-    workload: 0
-  });
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  
+  // Get users not already in team members
+  const availableUsers = mockUsers.filter(user => 
+    !teamMembers.some(member => member.id === user.id)
+  );
 
   const addTeamMember = () => {
-    if (newMember.name && newMember.role) {
-      const member: TeamMember = {
-        id: `tm-${Date.now()}`,
-        name: newMember.name,
-        role: newMember.role,
-        team: newMember.team || 'Recovery',
-        skills: newMember.skills || [],
-        workload: getMemberWorkload(`tm-${Date.now()}`)
-      };
-      setTeamMembers(prev => [...prev, member]);
-      setNewMember({ name: '', role: '', team: 'Recovery', skills: [], workload: 0 });
-      setIsAddMemberOpen(false);
+    if (!selectedUserId) return;
+    
+    const selectedUser = availableUsers.find(user => user.id === selectedUserId);
+    if (!selectedUser) return;
+
+    const member: TeamMember = {
+      id: selectedUser.id,
+      name: selectedUser.name,
+      role: selectedUser.role === 'team-lead' ? 'Lead Engineer' : getDefaultRoleForTeam(selectedUser.team),
+      team: selectedUser.team,
+      skills: getDefaultSkillsForTeam(selectedUser.team),
+      workload: getMemberWorkload(selectedUser.id)
+    };
+    
+    setTeamMembers(prev => [...prev, member]);
+    setSelectedUserId('');
+    setIsAddMemberOpen(false);
+  };
+
+  const getDefaultRoleForTeam = (team: Team): string => {
+    switch (team) {
+      case 'Avionics': return 'Avionics Specialist';
+      case 'Telemetry': return 'Software Developer';
+      case 'Parachute': return 'Parachute Engineer';
+      case 'Recovery': return 'Recovery Specialist';
+      default: return 'Team Member';
     }
+  };
+
+  const getDefaultSkillsForTeam = (team: Team): string[] => {
+    switch (team) {
+      case 'Avionics': return ['Electronics', 'PCB Design', 'Firmware'];
+      case 'Telemetry': return ['React', 'Node.js', 'Data Analysis'];
+      case 'Parachute': return ['Textiles', 'CAD', 'Testing'];
+      case 'Recovery': return ['Systems', 'Testing', 'Operations'];
+      default: return ['General'];
+    }
+  };
+
+  const removeMember = (memberId: string) => {
+    setTeamMembers(prev => prev.filter(member => member.id !== memberId));
   };
 
   const getWorkloadColor = (workload: number) => {
@@ -72,36 +112,37 @@ const TeamManagement: React.FC = () => {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input
-                    value={newMember.name}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter member name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Input
-                    value={newMember.role}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, role: e.target.value }))}
-                    placeholder="Enter role"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Team</Label>
-                  <Select value={newMember.team} onValueChange={(value) => setNewMember(prev => ({ ...prev, team: value }))}>
+                  <Label>Select User</Label>
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Choose from available users" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Recovery">Recovery</SelectItem>
-                      <SelectItem value="Avionics">Avionics</SelectItem>
-                      <SelectItem value="Telemetry">Telemetry</SelectItem>
-                      <SelectItem value="Parachute">Parachute</SelectItem>
+                      {availableUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <div className="font-medium">{user.name}</div>
+                              <div className="text-xs text-muted-foreground">{user.team} - {user.role}</div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={addTeamMember} className="w-full">Add Member</Button>
+                {availableUsers.length === 0 && (
+                  <div className="text-sm text-muted-foreground text-center py-4">
+                    All available users have been added to the team
+                  </div>
+                )}
+                <Button 
+                  onClick={addTeamMember} 
+                  className="w-full" 
+                  disabled={!selectedUserId}
+                >
+                  Add Member
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -155,6 +196,18 @@ const TeamManagement: React.FC = () => {
                           </div>
                         </div>
                       )}
+                      
+                      <div className="mt-3 pt-2 border-t">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeMember(member.id)}
+                          className="w-full text-red-600 hover:text-red-700"
+                        >
+                          <UserPlus className="h-3 w-3 mr-1 rotate-45" />
+                          Remove
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
