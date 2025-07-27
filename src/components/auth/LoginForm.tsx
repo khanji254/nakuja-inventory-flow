@@ -40,8 +40,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
     setError(null)
 
     try {
-      // The form validation ensures these fields are present and valid
-      const result = await AuthService.login(data as { email: string; password: string })
+      const result = await AuthService.login(data)
       localStorage.setItem('auth_token', result.token)
       localStorage.setItem('user', JSON.stringify(result.user))
       onSuccess(result.user, result.token)

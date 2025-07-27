@@ -14,12 +14,9 @@ import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
-import TaskDemo from "./pages/TaskDemo";
 import NotFound from "./pages/NotFound";
 import { User } from "./lib/permissions";
 import { AuthService } from "./lib/auth-service-mock";
-import { taskScheduler } from "./lib/task-scheduler";
-import { Toaster } from "./components/ui/toaster";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,7 +58,7 @@ function App() {
             localStorage.removeItem('user');
           }
         } catch (error) {
-          console.error('Token validation failed:', error);
+          // Invalid token
           localStorage.removeItem('auth_token');
           localStorage.removeItem('user');
         }
@@ -71,14 +68,6 @@ function App() {
 
     checkAuth();
   }, []);
-
-  // Initialize task scheduler when user is authenticated
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      console.log('🚀 Initializing task scheduler for authenticated user...');
-      taskScheduler.initialize().catch(console.error);
-    }
-  }, [isAuthenticated, user]);
 
   const handleLogin = (userData: User, token: string) => {
     setUser(userData);
@@ -137,22 +126,20 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<AppLayout user={user} onLogout={handleLogout} />}>
-            <Route index element={<Dashboard />} />
+            <Route index element={<Dashboard user={user} />} />
             <Route path="inventory" element={<Inventory user={user} />} />
             <Route path="purchase-requests" element={<PurchaseRequests user={user} />} />
             <Route path="bom" element={<BOM user={user} />} />
-            <Route path="vendors" element={<Vendors />} />
+            <Route path="vendors" element={<Vendors user={user} />} />
             <Route path="eisenhower" element={<EisenhowerMatrix user={user} />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="notifications" element={<Notifications />} />
+            <Route path="profile" element={<Profile user={user} />} />
+            <Route path="notifications" element={<Notifications user={user} />} />
             <Route path="users" element={<Users user={user} />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="task-demo" element={<TaskDemo />} />
+            <Route path="settings" element={<Settings user={user} />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-      <Toaster />
     </QueryClientProvider>
   );
 }
