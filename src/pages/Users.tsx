@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, Mail, Phone, Shield, UserCog, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Mail, Phone, Shield, UserCog, MoreHorizontal, Edit, Trash2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +11,14 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { User, usePermissions } from '@/lib/permissions';
 
-const Users = () => {
+interface UsersProps {
+  user: User;
+}
+
+const Users = ({ user }: UsersProps) => {
+  const permissions = usePermissions(user);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -138,6 +144,25 @@ const Users = () => {
     'team-member': users.filter(u => u.role === 'team-member').length
   };
 
+  // Access control - only admins and supervisors can manage users
+  if (!permissions.canManageUsers()) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Card className="w-full max-w-md">
+            <CardContent className="flex flex-col items-center justify-center p-6">
+              <Lock className="h-12 w-12 text-muted-foreground mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
+              <p className="text-muted-foreground text-center">
+                You don't have permission to manage users. Contact your administrator for access.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -145,13 +170,14 @@ const Users = () => {
           <h1 className="text-3xl font-bold">User Management</h1>
           <p className="text-muted-foreground">Manage team members, roles, and permissions</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
-          </DialogTrigger>
+        {permissions.hasPermission('WRITE_ALL') && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add User
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
@@ -220,6 +246,7 @@ const Users = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Stats Cards */}

@@ -13,11 +13,22 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { NotificationsDropdown } from '@/components/ui/notifications-dropdown';
 
-export const Header = () => {
+interface HeaderProps {
+  user?: any;
+  onLogout?: () => void;
+}
+
+export const Header = ({ user, onLogout }: HeaderProps) => {
   const navigate = useNavigate();
 
   const handleProfileClick = () => {
     navigate('/profile');
+  };
+
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   return (
@@ -46,8 +57,8 @@ export const Header = () => {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div>
-                  <p className="font-medium">John Doe</p>
-                  <p className="text-sm text-muted-foreground">Recovery Team Lead</p>
+                  <p className="font-medium">{user?.name || 'User'}</p>
+                  <p className="text-sm text-muted-foreground">{user?.role || 'Team Member'}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -55,7 +66,7 @@ export const Header = () => {
                 <User className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout
               </DropdownMenuItem>

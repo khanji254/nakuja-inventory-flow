@@ -484,7 +484,7 @@ const TeamManagementPage = ({ user }: TeamManagementPageProps) => {
 
         {permissions.canEditTeam(user.teamId || '') && (
           <TabsContent value="team">
-            <TeamManagement />
+            <TeamManagement user={user} />
           </TabsContent>
         )}
 
@@ -533,6 +533,7 @@ const TeamManagementPage = ({ user }: TeamManagementPageProps) => {
             </div>
             <div id="gantt-chart">
               <GanttChart 
+                tasks={teamTasks} 
                 currentWeek={currentWeek}
                 onWeekChange={setCurrentWeek}
                 viewMode={viewMode}
@@ -543,11 +544,11 @@ const TeamManagementPage = ({ user }: TeamManagementPageProps) => {
         </TabsContent>
 
         <TabsContent value="allocation">
-          <TaskAllocation />
+          <TaskAllocation user={user} />
         </TabsContent>
 
         <TabsContent value="status">
-          <NotionTaskStatus />
+          <NotionTaskStatus user={user} />
         </TabsContent>
       </Tabs>
     </div>

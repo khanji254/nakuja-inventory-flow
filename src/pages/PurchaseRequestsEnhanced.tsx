@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Download, Upload, CheckCircle, XCircle, Clock, AlertTriangle, Copy, Eye, EyeOff, Palette, Edit3, Trash2, Package, ShoppingBag, FileText } from 'lucide-react';
+import { Plus, Search, Filter, Download, Upload, CheckCircle, XCircle, Clock, AlertTriangle, Copy, Eye, EyeOff, Palette, Edit3, Trash2, Package, ShoppingBag, FileText, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { VendorSelect } from '@/components/ui/vendor-select';
 import { Switch } from '@/components/ui/switch';
 import { CSVImportExport } from '@/components/ui/csv-import-export';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   usePurchaseRequests, 
   useAddPurchaseRequest, 
@@ -28,8 +29,13 @@ import { useVendors } from '@/hooks/useVendors';
 import { useToast } from '@/hooks/use-toast';
 import { useMoveToPendingInventory } from '@/hooks/usePendingInventory';
 import { PurchaseRequest, PurchaseList, Team } from '@/types';
+import { User, usePermissions } from '@/lib/permissions';
 
-const PurchaseRequests = () => {
+interface PurchaseRequestsProps {
+  user: User;
+}
+
+const PurchaseRequests = ({ user }: PurchaseRequestsProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
@@ -42,7 +48,8 @@ const PurchaseRequests = () => {
   const { data: requests = [], isLoading } = usePurchaseRequests();
   const { data: purchaseLists = [] } = usePurchaseLists();
   const { data: vendors = [] } = useVendors();
-  const lowStockItems = useLowStockItems() || [];
+  const lowStockData = useLowStockItems();
+  const lowStockItems = Array.isArray(lowStockData) ? lowStockData : [];
   const addRequestMutation = useAddPurchaseRequest();
   const updateStatusMutation = useUpdateRequestStatus();
   const createListMutation = useCreatePurchaseList();
@@ -50,6 +57,7 @@ const PurchaseRequests = () => {
   const bulkImportMutation = useBulkImportPurchaseRequests();
   const moveToPendingMutation = useMoveToPendingInventory();
   const { toast } = useToast();
+  const permissions = usePermissions(user);
 
   const [formData, setFormData] = useState({
     itemName: '',
@@ -287,10 +295,12 @@ const PurchaseRequests = () => {
           <p className="text-muted-foreground">Manage purchase requests and automated ordering lists</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={createListFromApproved} variant="outline">
-            <FileText className="h-4 w-4 mr-2" />
-            Create Lists from Approved
-          </Button>
+          {permissions.canApprovePurchase(user.teamId) && (
+            <Button onClick={createListFromApproved} variant="outline">
+              <FileText className="h-4 w-4 mr-2" />
+              Create Lists from Approved
+            </Button>
+          )}
           <Button onClick={() => setIsListDialogOpen(true)} variant="outline">
             <Plus className="h-4 w-4 mr-2" />
             New List
@@ -303,7 +313,7 @@ const PurchaseRequests = () => {
       </div>
 
       {/* Low Stock Alert */}
-      {lowStockItems && lowStockItems.length > 0 && (
+      {lowStockItems && Array.isArray(lowStockItems) && lowStockItems.length > 0 && (
         <Card className="border-orange-200 bg-orange-50">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -319,17 +329,17 @@ const PurchaseRequests = () => {
           </CardHeader>
           <CardContent>
             <p className="text-orange-700 mb-3">
-              {lowStockItems.length} items are running low on stock and may need to be ordered:
+              {(lowStockItems || []).length} items are running low on stock and may need to be ordered:
             </p>
             <div className="flex flex-wrap gap-2">
-              {lowStockItems.slice(0, 5).map((item: { id: string; name: string; currentStock: number }) => (
+              {(lowStockItems || []).slice(0, 5).map((item: { id: string; name: string; currentStock: number }) => (
                 <Badge key={item.id} variant="outline" className="text-orange-700 border-orange-300">
                   {item.name} ({item.currentStock} left)
                 </Badge>
               ))}
-              {lowStockItems.length > 5 && (
+              {(lowStockItems || []).length > 5 && (
                 <Badge variant="outline" className="text-orange-700 border-orange-300">
-                  +{lowStockItems.length - 5} more
+                  +{(lowStockItems || []).length - 5} more
                 </Badge>
               )}
             </div>
@@ -446,7 +456,7 @@ const PurchaseRequests = () => {
                 <CSVImportExport
                   data={filteredRequests}
                   type="purchase-requests"
-                  onImport={async (data) => {
+                  onImport={permissions.canImportData() ? async (data) => {
                     return new Promise<void>((resolve, reject) => {
                       bulkImportMutation.mutate(data as PurchaseRequest[], {
                         onSuccess: () => {
@@ -459,7 +469,7 @@ const PurchaseRequests = () => {
                         }
                       });
                     });
-                  }}
+                  } : undefined}
                 />
               </div>
 
@@ -541,7 +551,7 @@ const PurchaseRequests = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              {request.status === 'pending' && (
+                              {request.status === 'pending' && permissions.canApprovePurchase(user.teamId) && (
                                 <>
                                   <Button
                                     size="sm"
@@ -560,7 +570,7 @@ const PurchaseRequests = () => {
                                   </Button>
                                 </>
                               )}
-                              {request.status === 'approved' && (
+                              {request.status === 'approved' && permissions.canApprovePurchase(user.teamId) && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStatusUpdate(request.id, 'ordered')}
@@ -569,7 +579,7 @@ const PurchaseRequests = () => {
                                   <ShoppingBag className="h-4 w-4" />
                                 </Button>
                               )}
-                              {request.status === 'ordered' && (
+                              {request.status === 'ordered' && permissions.canApprovePurchase(user.teamId) && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStatusUpdate(request.id, 'completed')}
@@ -578,7 +588,7 @@ const PurchaseRequests = () => {
                                   <Package className="h-4 w-4" />
                                 </Button>
                               )}
-                              {(request.status === 'approved' || request.status === 'rejected') && (
+                              {(request.status === 'approved' || request.status === 'rejected') && permissions.canApprovePurchase(user.teamId) && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -587,6 +597,12 @@ const PurchaseRequests = () => {
                                 >
                                   Undo
                                 </Button>
+                              )}
+                              {!permissions.canApprovePurchase(user.teamId) && (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <Lock className="h-4 w-4" />
+                                  <span className="text-xs">No Approval Rights</span>
+                                </div>
                               )}
                             </div>
                           </TableCell>
@@ -726,7 +742,7 @@ const PurchaseRequests = () => {
                                 Mark Completed
                               </Button>
                             )}
-                            {request.status === 'completed' && !request.movedToPending && (
+                            {request.status === 'completed' && !request.movedToPending && permissions.canEditInventory() && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -741,6 +757,12 @@ const PurchaseRequests = () => {
                               <Badge variant="outline" className="text-green-600 border-green-300">
                                 Moved to Pending
                               </Badge>
+                            )}
+                            {request.status === 'completed' && !request.movedToPending && !permissions.canEditInventory() && (
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Lock className="h-4 w-4" />
+                                <span className="text-xs">Inventory Access Required</span>
+                              </div>
                             )}
                           </div>
                         </TableCell>

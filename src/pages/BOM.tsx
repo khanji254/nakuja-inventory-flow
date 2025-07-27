@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Download, Upload, Link2, AlertCircle, DollarSign, Package, FileText, ShoppingBag } from 'lucide-react';
+import { Plus, Download, Upload, Link2, AlertCircle, DollarSign, Package, FileText, ShoppingBag, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,8 +17,14 @@ import { useInventoryData } from '@/hooks/useInventoryData';
 import { syncService } from '@/lib/sync-service';
 import { useToast } from '@/hooks/use-toast';
 import { BOMItem } from '@/types';
+import { User, usePermissions } from '@/lib/permissions';
 
-const BOM = () => {
+interface BOMProps {
+  user: User;
+}
+
+const BOM = ({ user }: BOMProps) => {
+  const permissions = usePermissions(user);
   const [selectedTeam, setSelectedTeam] = useState('Recovery');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { data: bomData = [] } = useBOMData();
@@ -164,18 +170,21 @@ const BOM = () => {
               </SelectItem>
             </SelectContent>
           </Select>
-          <CSVImportExport
-            data={flattenedBOMItems}
-            type="bom"
-            onImport={handleBOMImport}
-          />
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
-            </DialogTrigger>
+          {permissions.canImportData() && (
+            <CSVImportExport
+              data={flattenedBOMItems}
+              type="bom"
+              onImport={handleBOMImport}
+            />
+          )}
+          {(permissions.canEditTeam(user.teamId || '') || permissions.hasPermission('WRITE_ALL')) ? (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Add BOM Item</DialogTitle>
@@ -253,6 +262,12 @@ const BOM = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          ) : (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Lock className="h-4 w-4" />
+              <span className="text-sm">No Edit Access</span>
+            </div>
+          )}
         </div>
       </div>
 

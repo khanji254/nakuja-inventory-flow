@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, Filter, Download, Upload, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Filter, Download, Upload, Edit, Trash2, AlertTriangle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InventoryForm } from '@/components/inventory/InventoryForm';
 import CSVImportExport from '@/components/ui/csv-import-export';
 import PendingInventoryManager from '@/components/inventory/PendingInventoryManager';
@@ -14,8 +15,13 @@ import { useInventoryData, useDeleteInventoryItem, useBulkImportInventory } from
 import { usePendingInventory } from '@/hooks/usePendingInventory';
 import { InventoryItem } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { User, usePermissions } from '@/lib/permissions';
 
-const Inventory = () => {
+interface InventoryProps {
+  user: User;
+}
+
+const Inventory = ({ user }: InventoryProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -26,6 +32,7 @@ const Inventory = () => {
   const deleteItemMutation = useDeleteInventoryItem();
   const bulkImportMutation = useBulkImportInventory();
   const { toast } = useToast();
+  const permissions = usePermissions(user);
 
   const filteredInventory = inventory.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -86,6 +93,20 @@ const Inventory = () => {
     return <div className="p-6">Loading inventory...</div>;
   }
 
+  // Permission check for accessing inventory
+  if (!permissions.canAccessTeam(user.teamId || '') && !permissions.hasPermission('READ_ALL')) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            You don't have permission to access the inventory. Contact your team lead or administrator.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -93,22 +114,24 @@ const Inventory = () => {
           <h1 className="text-3xl font-bold">Inventory Management</h1>
           <p className="text-muted-foreground">Manage your rocket components and materials</p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedItem ? 'Edit Inventory Item' : 'Add New Inventory Item'}
-              </DialogTitle>
-            </DialogHeader>
-            <InventoryForm item={selectedItem} onClose={handleFormClose} />
-          </DialogContent>
-        </Dialog>
+        {permissions.canEditInventory(user.teamId) && (
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedItem ? 'Edit Inventory Item' : 'Add New Inventory Item'}
+                </DialogTitle>
+              </DialogHeader>
+              <InventoryForm item={selectedItem} onClose={handleFormClose} />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -148,17 +171,19 @@ const Inventory = () => {
       </div>
 
       {/* Pending Inventory Section */}
-      <PendingInventoryManager />
+      {permissions.canEditInventory(user.teamId) && <PendingInventoryManager />}
 
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Inventory Items</CardTitle>
-            <CSVImportExport
-              data={inventory}
-              type="inventory"
-              onImport={handleBulkImport}
-            />
+            {permissions.canImportData() && (
+              <CSVImportExport
+                data={inventory}
+                type="inventory"
+                onImport={handleBulkImport}
+              />
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -241,20 +266,31 @@ const Inventory = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditItem(item)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteItem(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {permissions.canEditInventory(user.teamId) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditItem(item)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {permissions.canEditInventory(user.teamId) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteItem(item.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {!permissions.canEditInventory(user.teamId) && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Lock className="h-4 w-4" />
+                            <span className="text-xs">Read Only</span>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

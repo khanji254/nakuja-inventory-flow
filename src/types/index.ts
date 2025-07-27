@@ -237,3 +237,106 @@ export interface Vendor {
   updatedAt: Date;
   createdBy: string;
 }
+
+// Task Management Types
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  assigneeId: string;
+  assigneeName?: string;
+  deadline: Date;
+  estimatedHours: number;
+  actualHours?: number;
+  priority: TaskPriority;
+  status: TaskStatus;
+  progress: number; // 0-100
+  category: TaskCategory;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+  teamId?: string;
+  tags?: string[];
+  dependencies?: string[]; // Task IDs this task depends on
+  completedAt?: Date;
+  notes?: string;
+}
+
+export type TaskPriority = 
+  | 'important-urgent' 
+  | 'important-not-urgent' 
+  | 'not-important-urgent' 
+  | 'not-important-not-urgent';
+
+export type TaskStatus = 
+  | 'not-started'
+  | 'in-progress' 
+  | 'blocked'
+  | 'under-review'
+  | 'completed'
+  | 'cancelled';
+
+export type TaskCategory = 
+  | 'development'
+  | 'design'
+  | 'testing'
+  | 'documentation'
+  | 'meeting'
+  | 'research'
+  | 'maintenance'
+  | 'other';
+
+export interface TaskProgress {
+  taskId: string;
+  userId: string;
+  progress: number;
+  actualHours?: number;
+  status: TaskStatus;
+  notes?: string;
+  updatedAt: Date;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: Date;
+}
+
+export interface TaskAttachment {
+  id: string;
+  taskId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  uploadedBy: string;
+  uploadedAt: Date;
+}
+
+// Enhanced Matrix Tasks Interface
+export interface MatrixTask extends Task {
+  // Inherits all Task properties
+}
+
+export interface MatrixTasks {
+  'important-urgent': MatrixTask[];
+  'important-not-urgent': MatrixTask[];
+  'not-important-urgent': MatrixTask[];
+  'not-important-not-urgent': MatrixTask[];
+}
+
+// User Task Dashboard
+export interface UserTaskSummary {
+  userId: string;
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  overdueTasks: number;
+  totalEstimatedHours: number;
+  totalActualHours: number;
+  completionRate: number;
+  averageTaskTime: number;
+  upcomingDeadlines: Task[];
+}
