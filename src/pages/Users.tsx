@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Search, Mail, Phone, Shield, UserCog, MoreHorizontal, Edit, Trash2, Lock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Mail, Phone, Shield, UserCog, MoreHorizontal, Edit, Trash2, Lock, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,31 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { User, usePermissions } from '@/lib/permissions';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { User, usePermissions, UserRole, ROLE_PERMISSIONS } from '@/lib/permissions';
+import { UserManagementService } from '@/lib/user-management-service';
+
+interface ExtendedUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: UserRole;
+  team: string;
+  status: 'active' | 'inactive' | 'pending';
+  avatar?: string;
+  lastLogin: Date;
+  joinedDate: Date;
+  permissions: string[];
+  bio?: string;
+  skills?: string[];
+  department?: string;
+}
+
+// Add a reusable status type
+type StatusType = 'active' | 'inactive' | 'pending';
 
 interface UsersProps {
   user: User;
@@ -19,87 +43,172 @@ interface UsersProps {
 
 const Users = ({ user }: UsersProps) => {
   const permissions = usePermissions(user);
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
+  const [users, setUsers] = useState<ExtendedUser[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock user data
-  const [users] = useState([
-    {
-      id: '1',
-      name: 'John Doe',
-      email: 'john.doe@nakuja.org',
-      phone: '+1 (555) 123-4567',
-      role: 'team-lead',
-      team: 'Recovery',
-      status: 'active',
-      avatar: '/placeholder.svg',
-      lastLogin: new Date('2024-01-16'),
-      joinedDate: new Date('2023-08-15'),
-      permissions: ['inventory-write', 'purchase-approve', 'bom-edit']
-    },
-    {
-      id: '2',
-      name: 'Sarah Wilson',
-      email: 'sarah.wilson@nakuja.org',
-      phone: '+1 (555) 234-5678',
-      role: 'team-lead',
-      team: 'Avionics',
-      status: 'active',
-      avatar: '/placeholder.svg',
-      lastLogin: new Date('2024-01-16'),
-      joinedDate: new Date('2023-09-01'),
-      permissions: ['inventory-write', 'purchase-approve', 'bom-edit']
-    },
-    {
-      id: '3',
-      name: 'Mike Johnson',
-      email: 'mike.johnson@nakuja.org',
-      phone: '+1 (555) 345-6789',
-      role: 'team-member',
-      team: 'Parachute',
-      status: 'active',
-      avatar: '/placeholder.svg',
-      lastLogin: new Date('2024-01-15'),
-      joinedDate: new Date('2023-10-12'),
-      permissions: ['inventory-read', 'purchase-request', 'bom-read']
-    },
-    {
-      id: '4',
-      name: 'David Brown',
-      email: 'david.brown@nakuja.org',
-      phone: '+1 (555) 456-7890',
-      role: 'team-member',
-      team: 'Telemetry',
-      status: 'active',
-      avatar: '/placeholder.svg',
-      lastLogin: new Date('2024-01-14'),
-      joinedDate: new Date('2023-11-20'),
-      permissions: ['inventory-read', 'purchase-request', 'bom-read']
-    },
-    {
-      id: '5',
-      name: 'Lisa Chen',
-      email: 'lisa.chen@nakuja.org',
-      phone: '+1 (555) 567-8901',
-      role: 'admin',
-      team: 'All Teams',
-      status: 'active',
-      avatar: '/placeholder.svg',
-      lastLogin: new Date('2024-01-16'),
-      joinedDate: new Date('2023-07-01'),
-      permissions: ['all-permissions']
+  // Load users on component mount
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const userData = await UserManagementService.getAllUsers();
+      setUsers(userData);
+    } catch (error) {
+      toast({
+        title: 'Error loading users',
+        description: 'Failed to load user data',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    role: 'team-member',
+    role: 'MEMBER' as UserRole,
     team: 'Recovery',
-    status: 'active'
+    status: 'active' as StatusType,
+    bio: '',
+    skills: '',
+    department: '',
+    password: ''
   });
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      role: 'MEMBER',
+      team: 'Recovery',
+      status: 'active' as StatusType,
+      bio: '',
+      skills: '',
+      department: '',
+      password: ''
+    });
+  };
+
+  const handleAddUser = async () => {
+    try {
+      const newUser = await UserManagementService.createUser({
+        ...formData,
+        skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : []
+      });
+      
+      setUsers(prev => [...prev, newUser]);
+      resetForm();
+      setIsDialogOpen(false);
+      toast({
+        title: 'User created successfully',
+        description: `${newUser.name} has been added to the team`
+      });
+    } catch (error) {
+      toast({
+        title: 'Error creating user',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleEditUser = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      const updatedUser = await UserManagementService.updateUser(selectedUser.id, {
+        ...formData,
+        skills: formData.skills ? formData.skills.split(',').map(s => s.trim()) : []
+      });
+      
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
+      setIsEditDialogOpen(false);
+      setSelectedUser(null);
+      resetForm();
+      toast({
+        title: 'User updated successfully',
+        description: `${updatedUser.name}'s profile has been updated`
+      });
+    } catch (error) {
+      toast({
+        title: 'Error updating user',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      await UserManagementService.deleteUser(selectedUser.id);
+      setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
+      setIsDeleteDialogOpen(false);
+      setSelectedUser(null);
+      toast({
+        title: 'User deleted successfully',
+        description: `${selectedUser.name} has been removed from the team`
+      });
+    } catch (error) {
+      toast({
+        title: 'Error deleting user',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    try {
+      const newPassword = await UserManagementService.resetPassword(userId);
+      toast({
+        title: 'Password reset successfully',
+        description: `New password: ${newPassword} (User should change this immediately)`
+      });
+    } catch (error) {
+      toast({
+        title: 'Error resetting password',
+        description: 'Please try again',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const openEditDialog = (user: ExtendedUser) => {
+    setSelectedUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      team: user.team,
+      status: user.status as StatusType,
+      bio: user.bio || '',
+      skills: user.skills?.join(', ') || '',
+      department: user.department || '',
+      password: ''
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const openDeleteDialog = (user: ExtendedUser) => {
+    setSelectedUser(user);
+    setIsDeleteDialogOpen(true);
+  };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -108,14 +217,22 @@ const Users = ({ user }: UsersProps) => {
     return matchesSearch && matchesRole;
   });
 
-  const getRoleBadge = (role: string) => {
+  const getRoleBadge = (role: UserRole) => {
     switch (role) {
-      case 'admin':
+      case 'SUPER_ADMIN':
+        return <Badge className="bg-red-500">Super Admin</Badge>;
+      case 'ADMIN':
         return <Badge className="bg-purple-500">Admin</Badge>;
-      case 'team-lead':
+      case 'SUPERVISOR':
+        return <Badge className="bg-orange-500">Supervisor</Badge>;
+      case 'TEAM_LEAD':
         return <Badge className="bg-blue-500">Team Lead</Badge>;
-      case 'team-member':
-        return <Badge variant="outline">Team Member</Badge>;
+      case 'PURCHASING_LEAD':
+        return <Badge className="bg-green-500">Purchasing Lead</Badge>;
+      case 'INVENTORY_LEAD':
+        return <Badge className="bg-cyan-500">Inventory Lead</Badge>;
+      case 'MEMBER':
+        return <Badge variant="outline">Member</Badge>;
       default:
         return <Badge variant="secondary">Unknown</Badge>;
     }
@@ -139,9 +256,13 @@ const Users = ({ user }: UsersProps) => {
   };
 
   const roleStats = {
-    admin: users.filter(u => u.role === 'admin').length,
-    'team-lead': users.filter(u => u.role === 'team-lead').length,
-    'team-member': users.filter(u => u.role === 'team-member').length
+    SUPER_ADMIN: users.filter(u => u.role === 'SUPER_ADMIN').length,
+    ADMIN: users.filter(u => u.role === 'ADMIN').length,
+    SUPERVISOR: users.filter(u => u.role === 'SUPERVISOR').length,
+    TEAM_LEAD: users.filter(u => u.role === 'TEAM_LEAD').length,
+    PURCHASING_LEAD: users.filter(u => u.role === 'PURCHASING_LEAD').length,
+    INVENTORY_LEAD: users.filter(u => u.role === 'INVENTORY_LEAD').length,
+    MEMBER: users.filter(u => u.role === 'MEMBER').length
   };
 
   // Access control - only admins and supervisors can manage users
@@ -178,79 +299,132 @@ const Users = ({ user }: UsersProps) => {
                 Add User
               </Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
-              <DialogDescription>
-                Add a new team member to the Nakuja Rocket Project
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Full Name</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="Enter full name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  placeholder="user@nakuja.org"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  placeholder="+1 (555) 123-4567"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Select value={formData.role} onValueChange={(value) => setFormData({...formData, role: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="team-member">Team Member</SelectItem>
-                      <SelectItem value="team-lead">Team Lead</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Add New User</DialogTitle>
+                <DialogDescription>
+                  Add a new team member to the Nakuja Rocket Project
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Full Name *</Label>
+                    <Input
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email *</Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      placeholder="user@nakuja.org"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      placeholder="+1 (555) 123-4567"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Department</Label>
+                    <Input
+                      value={formData.department}
+                      onChange={(e) => setFormData({...formData, department: e.target.value})}
+                      placeholder="Engineering"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Role *</Label>
+                    <Select value={formData.role} onValueChange={(value: UserRole) => setFormData({...formData, role: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MEMBER">Member</SelectItem>
+                        <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
+                        <SelectItem value="INVENTORY_LEAD">Inventory Lead</SelectItem>
+                        <SelectItem value="PURCHASING_LEAD">Purchasing Lead</SelectItem>
+                        {(user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && (
+                          <>
+                            <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                          </>
+                        )}
+                        {user.role === 'SUPER_ADMIN' && (
+                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Team *</Label>
+                    <Select value={formData.team} onValueChange={(value) => setFormData({...formData, team: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Recovery">Recovery</SelectItem>
+                        <SelectItem value="Avionics">Avionics</SelectItem>
+                        <SelectItem value="Telemetry">Telemetry</SelectItem>
+                        <SelectItem value="Parachute">Parachute</SelectItem>
+                        <SelectItem value="Propulsion">Propulsion</SelectItem>
+                        <SelectItem value="Structure">Structure</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Team</Label>
-                  <Select value={formData.team} onValueChange={(value) => setFormData({...formData, team: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Recovery">Recovery</SelectItem>
-                      <SelectItem value="Avionics">Avionics</SelectItem>
-                      <SelectItem value="Telemetry">Telemetry</SelectItem>
-                      <SelectItem value="Parachute">Parachute</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Initial Password *</Label>
+                  <Input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    placeholder="Enter initial password"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Skills (comma-separated)</Label>
+                  <Input
+                    value={formData.skills}
+                    onChange={(e) => setFormData({...formData, skills: e.target.value})}
+                    placeholder="React, Python, Electronics..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bio</Label>
+                  <Textarea
+                    value={formData.bio}
+                    onChange={(e) => setFormData({...formData, bio: e.target.value})}
+                    placeholder="Brief description about the user"
+                    rows={3}
+                  />
                 </div>
               </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setIsDialogOpen(false)}>Add User</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleAddUser} disabled={!formData.name || !formData.email || !formData.password}>
+                  Add User
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -264,7 +438,7 @@ const Users = ({ user }: UsersProps) => {
             <CardTitle className="text-sm font-medium">Admins</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{roleStats.admin}</div>
+            <div className="text-2xl font-bold text-purple-600">{roleStats.ADMIN + roleStats.SUPER_ADMIN}</div>
           </CardContent>
         </Card>
         <Card>
@@ -272,15 +446,15 @@ const Users = ({ user }: UsersProps) => {
             <CardTitle className="text-sm font-medium">Team Leads</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{roleStats['team-lead']}</div>
+            <div className="text-2xl font-bold text-blue-600">{roleStats.TEAM_LEAD}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
+            <CardTitle className="text-sm font-medium">Members</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{roleStats['team-member']}</div>
+            <div className="text-2xl font-bold text-green-600">{roleStats.MEMBER}</div>
           </CardContent>
         </Card>
       </div>
@@ -308,9 +482,13 @@ const Users = ({ user }: UsersProps) => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="team-lead">Team Lead</SelectItem>
-                <SelectItem value="team-member">Team Member</SelectItem>
+                <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
+                <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
+                <SelectItem value="PURCHASING_LEAD">Purchasing Lead</SelectItem>
+                <SelectItem value="INVENTORY_LEAD">Inventory Lead</SelectItem>
+                <SelectItem value="MEMBER">Member</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -369,22 +547,21 @@ const Users = ({ user }: UsersProps) => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEditDialog(user)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Edit User
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <UserCog className="h-4 w-4 mr-2" />
-                          Manage Permissions
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleResetPassword(user.id)}>
                           <Shield className="h-4 w-4 mr-2" />
                           Reset Password
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">
+                        <DropdownMenuItem 
+                          className="text-red-600"
+                          onClick={() => openDeleteDialog(user)}
+                        >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Deactivate User
+                          Delete User
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -436,6 +613,157 @@ const Users = ({ user }: UsersProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information and settings
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Full Name *</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  placeholder="user@nakuja.org"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Input
+                  value={formData.department}
+                  onChange={(e) => setFormData({...formData, department: e.target.value})}
+                  placeholder="Engineering"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Role *</Label>
+                <Select value={formData.role} onValueChange={(value: UserRole) => setFormData({...formData, role: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MEMBER">Member</SelectItem>
+                    <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
+                    <SelectItem value="INVENTORY_LEAD">Inventory Lead</SelectItem>
+                    <SelectItem value="PURCHASING_LEAD">Purchasing Lead</SelectItem>
+                    {(user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && (
+                      <>
+                        <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                      </>
+                    )}
+                    {user.role === 'SUPER_ADMIN' && (
+                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Team *</Label>
+                <Select value={formData.team} onValueChange={(value) => setFormData({...formData, team: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Recovery">Recovery</SelectItem>
+                    <SelectItem value="Avionics">Avionics</SelectItem>
+                    <SelectItem value="Telemetry">Telemetry</SelectItem>
+                    <SelectItem value="Parachute">Parachute</SelectItem>
+                    <SelectItem value="Propulsion">Propulsion</SelectItem>
+                    <SelectItem value="Structure">Structure</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={formData.status} onValueChange={(value: StatusType) => setFormData({...formData, status: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Skills (comma-separated)</Label>
+              <Input
+                value={formData.skills}
+                onChange={(e) => setFormData({...formData, skills: e.target.value})}
+                placeholder="React, Python, Electronics..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Bio</Label>
+              <Textarea
+                value={formData.bio}
+                onChange={(e) => setFormData({...formData, bio: e.target.value})}
+                placeholder="Brief description about the user"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditUser} disabled={!formData.name || !formData.email}>
+              Update User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{selectedUser?.name}</strong>? 
+              This action cannot be undone and will remove all user data and access.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteUser}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

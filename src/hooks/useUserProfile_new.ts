@@ -27,36 +27,17 @@ const convertToUserProfile = (user: ExtendedUser): UserProfile => {
   };
 };
 
-// Convert UserProfile to ExtendedUser format for updates
-const convertToExtendedUser = (profile: UserProfile, existingUser: ExtendedUser): ExtendedUser => {
-  return {
-    ...existingUser,
-    name: profile.name,
-    email: profile.email,
-    phone: profile.phone,
-    role: profile.role,
-    team: profile.team,
-    bio: profile.bio || '',
-    skills: profile.skills || [],
-    department: profile.department || ''
-  };
-};
-
 // Simulate API calls with real user management integration
 const profileAPI = {
-  getUserProfile: async (userId?: string): Promise<UserProfile> => {
-    // Get current user from localStorage if no userId provided
-    if (!userId) {
-      const userData = localStorage.getItem('user');
-      if (userData) {
-        const currentUser = JSON.parse(userData);
-        userId = currentUser.id;
-      }
+  getUserProfile: async (): Promise<UserProfile> => {
+    // Get current user from localStorage
+    const userData = localStorage.getItem('user');
+    if (!userData) {
+      throw new Error('No current user found');
     }
 
-    if (!userId) {
-      throw new Error('No user ID provided');
-    }
+    const currentUser = JSON.parse(userData);
+    const userId = currentUser.id;
 
     // Get user from UserManagementService
     const user = await UserManagementService.getUserById(userId);
@@ -88,29 +69,17 @@ const profileAPI = {
       name: profileData.name || existingUser.name,
       email: profileData.email || existingUser.email,
       phone: profileData.phone || existingUser.phone,
-      role: profileData.role || existingUser.role,
+      role: existingUser.role, // Keep existing role unless explicitly changed
       team: profileData.team || existingUser.team,
       status: existingUser.status,
-      bio: profileData.bio || existingUser.bio || '',
+      bio: profileData.bio !== undefined ? profileData.bio : existingUser.bio || '',
       skills: profileData.skills || existingUser.skills || [],
-      department: profileData.department || existingUser.department || ''
+      department: profileData.department !== undefined ? profileData.department : existingUser.department || ''
     };
 
     // Update user through UserManagementService
     const updatedUser = await UserManagementService.updateUser(userId, updatedUserData);
     
-    // Update localStorage user data if email or name changed
-    if (profileData.name || profileData.email) {
-      const newUserData = {
-        ...currentUser,
-        name: updatedUser.name,
-        email: updatedUser.email
-      };
-      localStorage.setItem('user', JSON.stringify(newUserData));
-    }
-
-    return convertToUserProfile(updatedUser);
-  },
     // Update localStorage user data if email or name changed
     if (profileData.name || profileData.email) {
       const newUserData = {
@@ -137,43 +106,15 @@ const profileAPI = {
     localStorageService.setItem('userProfile', updatedProfile);
     return updatedProfile;
   }
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Get current profile
-    const storedProfile = localStorageService.getItem('userProfile');
-    let current: UserProfile;
-    
-    if (storedProfile && typeof storedProfile === 'object' && storedProfile !== null) {
-      const stored = storedProfile as any;
-      current = {
-        ...stored,
-        joinDate: new Date(stored.joinDate || '2023-01-15'),
-        lastLogin: stored.lastLogin ? new Date(stored.lastLogin) : new Date()
-      } as UserProfile;
-    } else {
-      current = mockUserProfile;
-    }
-    
-    // Update profile
-    const updated: UserProfile = {
-      ...current,
-      ...profileData,
-      id: current.id, // Ensure ID doesn't change
-      lastLogin: new Date() // Update last login
-    };
-    
-    // Save to localStorage
-    localStorageService.setItem('userProfile', updated);
-    
-    return updated;
-  }
 };
 
+// React Query hooks
 export const useUserProfile = () => {
   return useQuery({
     queryKey: ['userProfile'],
     queryFn: profileAPI.getUserProfile,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 1
   });
 };
 
@@ -182,9 +123,65 @@ export const useUpdateUserProfile = () => {
   
   return useMutation({
     mutationFn: profileAPI.updateUserProfile,
-    onSuccess: (data) => {
-      queryClient.setQueryData(['userProfile'], data);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-    },
+    }
+  });
+};
+
+export const useUpdateUserPreferences = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: profileAPI.updateUserPreferences,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+    }
+  });
+};
+
+// Additional hooks for user management
+export const useUsers = () => {
+  return useQuery({
+    queryKey: ['users'],
+    queryFn: UserManagementService.getAllUsers,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: 1
+  });
+};
+
+export const useCreateUser = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: UserManagementService.createUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+    }
+  });
+};
+
+export const useUpdateUser = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => 
+      UserManagementService.updateUser(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+    }
+  });
+};
+
+export const useDeleteUser = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: UserManagementService.deleteUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    }
   });
 };
