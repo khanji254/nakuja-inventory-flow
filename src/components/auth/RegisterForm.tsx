@@ -7,7 +7,7 @@ import { Input } from '../ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form'
 import { Alert, AlertDescription } from '../ui/alert'
-import { AuthService } from '../../lib/auth-service-mock'
+import { authClient } from '../../lib/auth-client'
 import { Eye, EyeOff, UserPlus } from 'lucide-react'
 
 const registerSchema = z.object({
@@ -49,13 +49,12 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
 
     try {
       const { confirmPassword, ...registerData } = data
-      // For now, assign default role and team
       const registerWithDefaults = {
         ...registerData,
         role: 'MEMBER' as const,
         teamId: 'recovery'
       }
-      const result = await AuthService.register(registerWithDefaults)
+      const result = await authClient.register(registerWithDefaults)
       localStorage.setItem('auth_token', result.token)
       localStorage.setItem('user', JSON.stringify(result.user))
       onSuccess(result.user, result.token)

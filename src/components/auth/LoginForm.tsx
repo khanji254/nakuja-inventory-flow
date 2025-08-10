@@ -7,8 +7,8 @@ import { Input } from '../ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form'
 import { Alert, AlertDescription } from '../ui/alert'
-import { AuthService } from '../../lib/auth-service-mock'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
+import { authClient } from '../../lib/auth-client'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -40,7 +40,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
     setError(null)
 
     try {
-      const result = await AuthService.login(data)
+      const result = await authClient.login(data)
       localStorage.setItem('auth_token', result.token)
       localStorage.setItem('user', JSON.stringify(result.user))
       onSuccess(result.user, result.token)

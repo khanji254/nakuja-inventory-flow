@@ -1,14 +1,22 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
+import { ROLE_PERMISSIONS } from '../lib/permissions'
 
 const prisma = new PrismaClient()
+
+function genPassword(length = 16) {
+  const raw = crypto.randomBytes(length * 2).toString('base64')
+  const alnum = raw.replace(/[^A-Za-z0-9]/g, '')
+  return alnum.slice(0, length)
+}
 
 async function seed() {
   console.log('🌱 Starting database seed...')
 
   try {
     // Create default teams
-    const teams = await Promise.all([
+    await Promise.all([
       prisma.team.upsert({
         where: { id: 'recovery' },
         update: {},
@@ -50,7 +58,9 @@ async function seed() {
     console.log('✅ Created default teams')
 
     // Create administrator account
-    const adminPassword = await bcrypt.hash('admin123', 10)
+    const adminPlain = genPassword(18)
+    const adminPassword = await bcrypt.hash(adminPlain, 12)
+
     const admin = await prisma.user.upsert({
       where: { email: 'admin@nakuja.org' },
       update: {},
@@ -59,48 +69,36 @@ async function seed() {
         email: 'admin@nakuja.org',
         password: adminPassword,
         role: 'SUPER_ADMIN',
+        permissions: ROLE_PERMISSIONS.SUPER_ADMIN,
         isActive: true
       }
     })
 
     console.log('✅ Created administrator account')
 
-    // Create 4 admin accounts as requested
+    // Create 4 admin accounts
     const adminAccounts = [
-      {
-        name: 'John Smith',
-        email: 'john.admin@nakuja.org',
-        role: 'ADMIN' as const,
-        teamId: 'recovery'
-      },
-      {
-        name: 'Sarah Johnson',
-        email: 'sarah.admin@nakuja.org',
-        role: 'ADMIN' as const,
-        teamId: 'avionics'
-      },
-      {
-        name: 'Mike Wilson',
-        email: 'mike.admin@nakuja.org',
-        role: 'ADMIN' as const,
-        teamId: 'telemetry'
-      },
-      {
-        name: 'Lisa Brown',
-        email: 'lisa.admin@nakuja.org',
-        role: 'ADMIN' as const,
-        teamId: 'parachute'
-      }
+      { name: 'John Smith', email: 'john.admin@nakuja.org', role: 'ADMIN' as const, teamId: 'recovery' },
+      { name: 'Sarah Johnson', email: 'sarah.admin@nakuja.org', role: 'ADMIN' as const, teamId: 'avionics' },
+      { name: 'Mike Wilson', email: 'mike.admin@nakuja.org', role: 'ADMIN' as const, teamId: 'telemetry' },
+      { name: 'Lisa Brown', email: 'lisa.admin@nakuja.org', role: 'ADMIN' as const, teamId: 'parachute' }
     ]
 
+    const generatedPasswords: Record<string, string> = {
+      'admin@nakuja.org': adminPlain
+    }
+
     for (const account of adminAccounts) {
-      const hashedPassword = await bcrypt.hash('admin123', 10)
+      const plain = genPassword(16)
+      generatedPasswords[account.email] = plain
+      const hashedPassword = await bcrypt.hash(plain, 12)
       await prisma.user.upsert({
         where: { email: account.email },
         update: {},
         create: {
           ...account,
           password: hashedPassword,
+          permissions: ROLE_PERMISSIONS[account.role],
           isActive: true
         }
       })
@@ -110,28 +108,21 @@ async function seed() {
 
     // Create team leads
     const teamLeads = [
-      {
-        name: 'Alex Recovery',
-        email: 'alex.lead@nakuja.org',
-        role: 'TEAM_LEAD' as const,
-        teamId: 'recovery'
-      },
-      {
-        name: 'Emma Avionics',
-        email: 'emma.lead@nakuja.org',
-        role: 'TEAM_LEAD' as const,
-        teamId: 'avionics'
-      }
+      { name: 'Alex Recovery', email: 'alex.lead@nakuja.org', role: 'TEAM_LEAD' as const, teamId: 'recovery' },
+      { name: 'Emma Avionics', email: 'emma.lead@nakuja.org', role: 'TEAM_LEAD' as const, teamId: 'avionics' }
     ]
 
     for (const lead of teamLeads) {
-      const hashedPassword = await bcrypt.hash('lead123', 10)
+      const plain = genPassword(16)
+      generatedPasswords[lead.email] = plain
+      const hashedPassword = await bcrypt.hash(plain, 12)
       await prisma.user.upsert({
         where: { email: lead.email },
         update: {},
         create: {
           ...lead,
           password: hashedPassword,
+          permissions: ROLE_PERMISSIONS[lead.role],
           isActive: true
         }
       })
@@ -139,36 +130,24 @@ async function seed() {
 
     console.log('✅ Created team leads')
 
-    // Create specialized leads
+    // Specialized leads
     const specializedLeads = [
-      {
-        name: 'David Purchase',
-        email: 'david.purchasing@nakuja.org',
-        role: 'PURCHASING_LEAD' as const,
-        teamId: 'recovery'
-      },
-      {
-        name: 'Maria Inventory',
-        email: 'maria.inventory@nakuja.org',
-        role: 'INVENTORY_LEAD' as const,
-        teamId: 'avionics'
-      },
-      {
-        name: 'Tom Supervisor',
-        email: 'tom.supervisor@nakuja.org',
-        role: 'SUPERVISOR' as const,
-        teamId: 'telemetry'
-      }
+      { name: 'David Purchase', email: 'david.purchasing@nakuja.org', role: 'PURCHASING_LEAD' as const, teamId: 'recovery' },
+      { name: 'Maria Inventory', email: 'maria.inventory@nakuja.org', role: 'INVENTORY_LEAD' as const, teamId: 'avionics' },
+      { name: 'Tom Supervisor', email: 'tom.supervisor@nakuja.org', role: 'SUPERVISOR' as const, teamId: 'telemetry' }
     ]
 
     for (const lead of specializedLeads) {
-      const hashedPassword = await bcrypt.hash('lead123', 10)
+      const plain = genPassword(16)
+      generatedPasswords[lead.email] = plain
+      const hashedPassword = await bcrypt.hash(plain, 12)
       await prisma.user.upsert({
         where: { email: lead.email },
         update: {},
         create: {
           ...lead,
           password: hashedPassword,
+          permissions: ROLE_PERMISSIONS[lead.role],
           isActive: true
         }
       })
@@ -176,30 +155,23 @@ async function seed() {
 
     console.log('✅ Created specialized leads')
 
-    // Create demo members
+    // Demo members
     const members = [
-      {
-        name: 'Jane Member',
-        email: 'jane.member@nakuja.org',
-        role: 'MEMBER' as const,
-        teamId: 'recovery'
-      },
-      {
-        name: 'Bob Builder',
-        email: 'bob.member@nakuja.org',
-        role: 'MEMBER' as const,
-        teamId: 'avionics'
-      }
+      { name: 'Jane Member', email: 'jane.member@nakuja.org', role: 'MEMBER' as const, teamId: 'recovery' },
+      { name: 'Bob Builder', email: 'bob.member@nakuja.org', role: 'MEMBER' as const, teamId: 'avionics' }
     ]
 
     for (const member of members) {
-      const hashedPassword = await bcrypt.hash('member123', 10)
+      const plain = genPassword(14)
+      generatedPasswords[member.email] = plain
+      const hashedPassword = await bcrypt.hash(plain, 12)
       await prisma.user.upsert({
         where: { email: member.email },
         update: {},
         create: {
           ...member,
           password: hashedPassword,
+          permissions: ROLE_PERMISSIONS[member.role],
           isActive: true
         }
       })
@@ -207,32 +179,34 @@ async function seed() {
 
     console.log('✅ Created demo members')
 
-    // Update team leads to be assigned to their teams
+    // Assign team leads
     await prisma.team.update({
       where: { id: 'recovery' },
       data: {
-        leadId: (await prisma.user.findUnique({ where: { email: 'alex.lead@nakuja.org' } }))?.id
+        teamLeadId: (await prisma.user.findUnique({ where: { email: 'alex.lead@nakuja.org' } }))?.id || undefined
       }
     })
 
     await prisma.team.update({
       where: { id: 'avionics' },
       data: {
-        leadId: (await prisma.user.findUnique({ where: { email: 'emma.lead@nakuja.org' } }))?.id
+        teamLeadId: (await prisma.user.findUnique({ where: { email: 'emma.lead@nakuja.org' } }))?.id || undefined
       }
     })
 
     console.log('✅ Assigned team leads')
 
-    // Create some sample inventory data
+    // Create sample inventory items (mapped to current schema requirements)
     const inventoryItems = [
       {
         name: 'Flight Computer Board',
         description: 'Main flight computer for rocket guidance',
         category: 'Electronics',
+        unitPrice: new Prisma.Decimal(150.0),
+        currentStock: 5,
         quantity: 5,
-        price: 150.00,
-        supplier: 'TechCorp',
+        reorderPoint: 2,
+        vendor: 'TechCorp',
         location: 'Storage Room A',
         teamId: 'avionics'
       },
@@ -240,9 +214,11 @@ async function seed() {
         name: 'Parachute Fabric',
         description: 'High-strength nylon fabric for main parachute',
         category: 'Materials',
+        unitPrice: new Prisma.Decimal(75.0),
+        currentStock: 10,
         quantity: 10,
-        price: 75.00,
-        supplier: 'Parachute Supplies Inc',
+        reorderPoint: 3,
+        vendor: 'Parachute Supplies Inc',
         location: 'Storage Room B',
         teamId: 'recovery'
       },
@@ -250,48 +226,34 @@ async function seed() {
         name: 'Telemetry Module',
         description: 'Radio transmitter for real-time data',
         category: 'Electronics',
+        unitPrice: new Prisma.Decimal(200.0),
+        currentStock: 3,
         quantity: 3,
-        price: 200.00,
-        supplier: 'RadioTech',
+        reorderPoint: 1,
+        vendor: 'RadioTech',
         location: 'Electronics Lab',
         teamId: 'telemetry'
       }
     ]
 
     for (const item of inventoryItems) {
-      await prisma.inventoryItem.upsert({
-        where: { 
-          name_teamId: { 
-            name: item.name, 
-            teamId: item.teamId 
-          } 
-        },
-        update: {},
-        create: item
+      await prisma.inventoryItem.create({
+        data: {
+          ...item,
+          createdById: admin.id,
+          updatedById: admin.id
+        }
       })
     }
 
     console.log('✅ Created sample inventory items')
 
-    console.log('\n🎉 Database seeded successfully!')
-    console.log('\n📋 Account Summary:')
-    console.log('👑 Super Admin: admin@nakuja.org (password: admin123)')
-    console.log('🔧 Admin Accounts:')
-    console.log('  - john.admin@nakuja.org (password: admin123)')
-    console.log('  - sarah.admin@nakuja.org (password: admin123)')
-    console.log('  - mike.admin@nakuja.org (password: admin123)')
-    console.log('  - lisa.admin@nakuja.org (password: admin123)')
-    console.log('👥 Team Leads:')
-    console.log('  - alex.lead@nakuja.org (password: lead123)')
-    console.log('  - emma.lead@nakuja.org (password: lead123)')
-    console.log('🏷️ Specialized Leads:')
-    console.log('  - david.purchasing@nakuja.org (password: lead123)')
-    console.log('  - maria.inventory@nakuja.org (password: lead123)')
-    console.log('  - tom.supervisor@nakuja.org (password: lead123)')
-    console.log('👤 Demo Members:')
-    console.log('  - jane.member@nakuja.org (password: member123)')
-    console.log('  - bob.member@nakuja.org (password: member123)')
+    console.log('\n🎉 Database seeded successfully!\n')
 
+    console.log('📋 Generated Account Credentials:')
+    for (const [email, pwd] of Object.entries(generatedPasswords)) {
+      console.log(`  - ${email}  |  ${pwd}`)
+    }
   } catch (error) {
     console.error('❌ Error seeding database:', error)
     throw error
@@ -300,8 +262,7 @@ async function seed() {
   }
 }
 
-seed()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
+seed().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

@@ -16,7 +16,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { User } from "./lib/permissions";
-import { AuthService } from "./lib/auth-service-mock";
+import { authClient } from "./lib/auth-client";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,23 +45,20 @@ function App() {
       const token = localStorage.getItem('auth_token');
       const userData = localStorage.getItem('user');
       
-      if (token && userData) {
+      if (token) {
         try {
-          const isValid = await AuthService.validateToken(token);
-          if (isValid) {
-            const parsedUser = JSON.parse(userData);
-            setUser(parsedUser);
-            setIsAuthenticated(true);
-          } else {
-            // Token expired
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-          }
+          // Validate token and fetch current user from backend
+          const currentUser = await authClient.me(token);
+          setUser(currentUser as unknown as User);
+          setIsAuthenticated(true);
         } catch (error) {
-          // Invalid token
+          // Invalid/expired token
           localStorage.removeItem('auth_token');
           localStorage.removeItem('user');
         }
+      } else if (userData) {
+        // Cleanup stale local user if no token
+        localStorage.removeItem('user');
       }
       setLoading(false);
     };
@@ -76,11 +73,20 @@ function App() {
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    const token = localStorage.getItem('auth_token');
+    try {
+      if (token) {
+        await authClient.logout(token);
+      }
+    } catch {
+      // ignore logout errors
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+    }
   };
 
   const handleSwitchToRegister = () => {

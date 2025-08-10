@@ -21,102 +21,104 @@ model Team {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  users              User[]
-  inventoryItems     InventoryItem[]
-  purchaseRequests   PurchaseRequest[]
-  purchaseLists      PurchaseList[]
-  billOfMaterials    BillOfMaterials[]
-  purchaseListItems  PurchaseListItem[]
-  bomItems           BOMItem[]
-  teamLeadId         String?
-  teamLead           User?            @relation("TeamLead", fields: [teamLeadId], references: [id])
+  users             User[]
+  inventoryItems    InventoryItem[]
+  purchaseRequests  PurchaseRequest[]
+  purchaseLists     PurchaseList[]
+  billOfMaterials   BillOfMaterials[]
+  purchaseListItems PurchaseListItem[]
+  bomItems          BOMItem[]
+  teamLeadId        String?
+  teamLead          User?              @relation("TeamLead", fields: [teamLeadId], references: [id])
+  UserProfile       UserProfile[]
 
   @@map("teams")
 }
 
 // Users and Authentication
 model User {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  email       String   @unique
-  password    String   // Hashed password
+  email       String    @unique
+  password    String // Hashed password
   role        UserRole
   teamId      String?
-  team        Team?    @relation(fields: [teamId], references: [id])
+  team        Team?     @relation(fields: [teamId], references: [id])
   permissions String[]
-  isActive    Boolean  @default(true)
+  isActive    Boolean   @default(true)
   lastLogin   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Relations
-  createdInventoryItems   InventoryItem[]   @relation("CreatedBy")
-  updatedInventoryItems   InventoryItem[]   @relation("UpdatedBy")
-  createdPurchaseRequests PurchaseRequest[] @relation("RequestedBy")
+  createdInventoryItems    InventoryItem[]   @relation("CreatedBy")
+  updatedInventoryItems    InventoryItem[]   @relation("UpdatedBy")
+  createdPurchaseRequests  PurchaseRequest[] @relation("RequestedBy")
   approvedPurchaseRequests PurchaseRequest[] @relation("ApprovedBy")
-  createdPurchaseLists    PurchaseList[]    @relation("CreatedBy")
-  createdBOMs            BillOfMaterials[] @relation("CreatedBy")
-  createdVendors         Vendor[]          @relation("CreatedBy")
-  notifications          Notification[]
-  leadsTeam              Team[]            @relation("TeamLead")
-  auditLogs              AuditLog[]
+  createdPurchaseLists     PurchaseList[]    @relation("CreatedBy")
+  createdBOMs              BillOfMaterials[] @relation("CreatedBy")
+  createdVendors           Vendor[]          @relation("CreatedBy")
+  notifications            Notification[]
+  leadsTeam                Team[]            @relation("TeamLead")
+  auditLogs                AuditLog[]
+  UserProfile              UserProfile?
 
   @@map("users")
 }
 
 model UserProfile {
-  id           String               @id @default(cuid())
-  userId       String               @unique
-  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  email        String
-  role         UserRole
-  teamId       String?
-  team         Team?                @relation(fields: [teamId], references: [id])
-  avatar       String?
-  phone        String?
-  department   String?
-  joinDate     DateTime
-  bio          String?
-  skills       String[]
-  preferences  Json                 // UI preferences, notifications, etc.
-  lastLogin    DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  role        UserRole
+  teamId      String?
+  team        Team?     @relation(fields: [teamId], references: [id])
+  avatar      String?
+  phone       String?
+  department  String?
+  joinDate    DateTime
+  bio         String?
+  skills      String[]
+  preferences Json // UI preferences, notifications, etc.
+  lastLogin   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("user_profiles")
 }
 
 // Inventory Management
 model InventoryItem {
-  id                    String                 @id @default(cuid())
-  name                  String
-  category              String
-  vendor                String
-  unitPrice             Decimal                @db.Decimal(12, 2)
-  currentStock          Int
-  quantity              Int
-  reorderPoint          Int
-  location              String?
-  partNumber            String?
-  minStock              Int?
-  description           String?
-  priority              Priority?
-  eisenhowerQuadrant    EisenhowerQuadrant?
-  isPending             Boolean                @default(false)
-  lastUpdated           DateTime               @updatedAt
-  createdAt             DateTime               @default(now())
-  
+  id                 String              @id @default(cuid())
+  name               String
+  category           String
+  vendor             String
+  unitPrice          Decimal             @db.Decimal(12, 2)
+  currentStock       Int
+  quantity           Int
+  reorderPoint       Int
+  location           String?
+  partNumber         String?
+  minStock           Int?
+  description        String?
+  priority           Priority?
+  eisenhowerQuadrant EisenhowerQuadrant?
+  isPending          Boolean             @default(false)
+  lastUpdated        DateTime            @updatedAt
+  createdAt          DateTime            @default(now())
+
   // Relations
-  createdById           String
-  createdBy             User                   @relation("CreatedBy", fields: [createdById], references: [id])
-  updatedById           String
-  updatedBy             User                   @relation("UpdatedBy", fields: [updatedById], references: [id])
-  teamId                String?
-  team                  Team?                  @relation(fields: [teamId], references: [id])
-  
-  bomItems              BOMItem[]
-  pendingItems          PendingInventoryItem[]
+  createdById String
+  createdBy   User    @relation("CreatedBy", fields: [createdById], references: [id])
+  updatedById String
+  updatedBy   User    @relation("UpdatedBy", fields: [updatedById], references: [id])
+  teamId      String?
+  team        Team?   @relation(fields: [teamId], references: [id])
+
+  bomItems     BOMItem[]
+  pendingItems PendingInventoryItem[]
 
   @@map("inventory_items")
 }
@@ -131,48 +133,48 @@ model PendingInventoryItem {
   notes             String?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  
+
   // Relations
-  inventoryItemId   String
-  inventoryItem     InventoryItem       @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
 
   @@map("pending_inventory_items")
 }
 
 // Purchase Management
 model PurchaseRequest {
-  id                 String             @id @default(cuid())
+  id                 String              @id @default(cuid())
   itemName           String
   title              String?
   description        String?
   type               String?
-  unitPrice          Decimal            @db.Decimal(12, 2)
+  unitPrice          Decimal             @db.Decimal(12, 2)
   quantity           Int
   urgency            Urgency
   vendor             String
-  requestedDate      DateTime           @default(now())
-  status             PurchaseStatus     @default(PENDING)
+  requestedDate      DateTime            @default(now())
+  status             PurchaseStatus      @default(PENDING)
   approvedDate       DateTime?
   notes              String?
   teamId             String?
-  team               Team?              @relation(fields: [teamId], references: [id])
+  team               Team?               @relation(fields: [teamId], references: [id])
   eisenhowerQuadrant EisenhowerQuadrant?
   listId             String?
   orderNumber        String?
   deliveryDate       DateTime?
-  isLowStockItem     Boolean            @default(false)
-  movedToPending     Boolean            @default(false)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  
+  isLowStockItem     Boolean             @default(false)
+  movedToPending     Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
   // Relations
-  requestedById      String
-  requestedBy        User               @relation("RequestedBy", fields: [requestedById], references: [id])
-  approvedById       String?
-  approvedBy         User?              @relation("ApprovedBy", fields: [approvedById], references: [id])
-  
-  purchaseList       PurchaseList?      @relation(fields: [listId], references: [id])
-  listItems          PurchaseListItem[]
+  requestedById String
+  requestedBy   User    @relation("RequestedBy", fields: [requestedById], references: [id])
+  approvedById  String?
+  approvedBy    User?   @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  purchaseList PurchaseList?      @relation(fields: [listId], references: [id])
+  listItems    PurchaseListItem[]
 
   @@map("purchase_requests")
 }
@@ -196,125 +198,125 @@ model PurchaseList {
   createdDate   DateTime           @default(now())
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
-  
+
   // Relations
-  createdById   String
-  createdBy     User               @relation("CreatedBy", fields: [createdById], references: [id])
-  
-  items         PurchaseListItem[]
-  requests      PurchaseRequest[]
+  createdById String
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+
+  items    PurchaseListItem[]
+  requests PurchaseRequest[]
 
   @@map("purchase_lists")
 }
 
 model PurchaseListItem {
-  id            String         @id @default(cuid())
-  requestId     String?
-  itemName      String
-  description   String?
-  quantity      Int
-  unitPrice     Decimal        @db.Decimal(12, 2)
-  totalPrice    Decimal        @db.Decimal(12, 2)
-  vendor        String
-  category      String
-  location      String?
-  urgency       Urgency
-  notes         String?
-  status        ItemStatus     @default(PENDING)
-  teamId        String?
-  team          Team?          @relation(fields: [teamId], references: [id])
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  
+  id          String     @id @default(cuid())
+  requestId   String?
+  itemName    String
+  description String?
+  quantity    Int
+  unitPrice   Decimal    @db.Decimal(12, 2)
+  totalPrice  Decimal    @db.Decimal(12, 2)
+  vendor      String
+  category    String
+  location    String?
+  urgency     Urgency
+  notes       String?
+  status      ItemStatus @default(PENDING)
+  teamId      String?
+  team        Team?      @relation(fields: [teamId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
   // Relations
-  listId        String
-  list          PurchaseList   @relation(fields: [listId], references: [id], onDelete: Cascade)
-  request       PurchaseRequest? @relation(fields: [requestId], references: [id])
+  listId  String
+  list    PurchaseList     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  request PurchaseRequest? @relation(fields: [requestId], references: [id])
 
   @@map("purchase_list_items")
 }
 
 // Bill of Materials
 model BillOfMaterials {
-  id              String     @id @default(cuid())
-  itemName        String
-  name            String?
-  description     String?
-  partNumber      String?
-  category        String?
+  id               String     @id @default(cuid())
+  itemName         String
+  name             String?
+  description      String?
+  partNumber       String?
+  category         String?
   requiredQuantity Int
-  unitPrice       Decimal    @db.Decimal(12, 2)
-  vendor          String
-  teamId          String?
-  team            Team?      @relation(fields: [teamId], references: [id])
-  totalCost       Decimal?   @db.Decimal(12, 2)
-  status          BOMStatus? @default(DRAFT)
-  createdDate     DateTime   @default(now())
-  lastUpdated     DateTime   @updatedAt
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  
+  unitPrice        Decimal    @db.Decimal(12, 2)
+  vendor           String
+  teamId           String?
+  team             Team?      @relation(fields: [teamId], references: [id])
+  totalCost        Decimal?   @db.Decimal(12, 2)
+  status           BOMStatus? @default(DRAFT)
+  createdDate      DateTime   @default(now())
+  lastUpdated      DateTime   @updatedAt
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
   // Relations
-  createdById     String?
-  createdBy       User?      @relation("CreatedBy", fields: [createdById], references: [id])
-  
-  items           BOMItem[]
+  createdById String?
+  createdBy   User?   @relation("CreatedBy", fields: [createdById], references: [id])
+
+  items BOMItem[]
 
   @@map("bill_of_materials")
 }
 
 model BOMItem {
-  id               String           @id @default(cuid())
+  id               String   @id @default(cuid())
   itemName         String
   description      String?
   partNumber       String?
   category         String?
   requiredQuantity Int
   quantity         Int
-  unitPrice        Decimal          @db.Decimal(12, 2)
-  totalPrice       Decimal          @db.Decimal(12, 2)
+  unitPrice        Decimal  @db.Decimal(12, 2)
+  totalPrice       Decimal  @db.Decimal(12, 2)
   vendor           String
   teamId           String?
-  team             Team?            @relation(fields: [teamId], references: [id])
+  team             Team?    @relation(fields: [teamId], references: [id])
   availableStock   Int?
   shortfall        Int?
   notes            String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
   // Relations
-  bomId            String
-  bom              BillOfMaterials  @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  inventoryItemId  String?
-  inventoryItem    InventoryItem?   @relation(fields: [inventoryItemId], references: [id])
+  bomId           String
+  bom             BillOfMaterials @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  inventoryItemId String?
+  inventoryItem   InventoryItem?  @relation(fields: [inventoryItemId], references: [id])
 
   @@map("bom_items")
 }
 
 // Vendor Management
 model Vendor {
-  id                 String        @id @default(cuid())
+  id                 String   @id @default(cuid())
   name               String
   companyName        String
   contactPerson      String?
   email              String?
   phone              String
   alternativePhone   String?
-  location           Json          // Changed from VendorLocation type
-  paymentMethods     Json          // Changed from PaymentInfo[] type
+  location           Json // Changed from VendorLocation type
+  paymentMethods     Json // Changed from PaymentInfo[] type
   category           String?
-  rating             Float?        @db.Real
+  rating             Float?   @db.Real
   notes              String?
   website            String?
   registrationNumber String?
   taxNumber          String?
-  isActive           Boolean       @default(true)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
   // Relations
-  createdById        String
-  createdBy          User          @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
   @@map("vendors")
 }
@@ -332,50 +334,43 @@ model Notification {
   actionUrl       String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
-  
+
   // Relations
-  userId          String
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
 
 // Audit Log for tracking all changes
 model AuditLog {
-  id            String          @id @default(cuid())
-  action        AuditAction
-  tableName     String
-  recordId      String?
-  oldValues     Json?
-  newValues     Json?
-  changes       Json?           // Specific fields that changed
-  ipAddress     String?
-  userAgent     String?
-  createdAt     DateTime        @default(now())
-  
+  id        String      @id @default(cuid())
+  action    AuditAction
+  tableName String
+  recordId  String?
+  oldValues Json?
+  newValues Json?
+  changes   Json? // Specific fields that changed
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
   // Relations
-  userId        String
-  user          User            @relation(fields: [userId], references: [id])
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
 }
 
 // Enums
 enum UserRole {
-  SUPER_ADMIN       // Full system access
-  ADMIN             // Full access to their organization
-  SUPERVISOR        // Can see all teams, limited edit access
-  TEAM_LEAD         // Full access to their team
-  PURCHASING_LEAD   // Can approve purchases across teams
-  INVENTORY_LEAD    // Can edit inventory across teams
-  MEMBER            // Basic access to their team
-}
-
-enum Team {
-  AVIONICS
-  TELEMETRY
-  PARACHUTE
-  RECOVERY
+  SUPER_ADMIN // Full system access
+  ADMIN // Full access to their organization
+  SUPERVISOR // Can see all teams, limited edit access
+  TEAM_LEAD // Full access to their team
+  PURCHASING_LEAD // Can approve purchases across teams
+  INVENTORY_LEAD // Can edit inventory across teams
+  MEMBER // Basic access to their team
 }
 
 enum Priority {

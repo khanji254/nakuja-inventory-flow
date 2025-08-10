@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserProfile, Team, UserRole } from '@/types';
+// Import app-level types separately from service/permissions types to resolve role casing differences
+import type { UserProfile, Team, UserRole as AppUserRole } from '@/types';
 import { localStorageService } from '@/lib/storage-service';
 import { UserManagementService, ExtendedUser } from '@/lib/user-management-service';
+import type { UserRole as Role } from '@/lib/permissions';
 
 // Convert ExtendedUser to UserProfile format
 const convertToUserProfile = (user: ExtendedUser): UserProfile => {
@@ -9,8 +11,9 @@ const convertToUserProfile = (user: ExtendedUser): UserProfile => {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role as UserRole,
-    team: user.team as Team,
+    // Cast service role (uppercase enum-like) to app role type (lowercase union)
+    role: (user.role as unknown) as AppUserRole,
+    team: (user.team as unknown) as Team,
     avatar: user.avatar || '',
     phone: user.phone,
     department: user.department || '',
@@ -27,15 +30,16 @@ const convertToUserProfile = (user: ExtendedUser): UserProfile => {
   };
 };
 
-// Convert UserProfile to ExtendedUser format for updates
+// Convert UserProfile to ExtendedUser format for updates (not currently used but kept for reference)
 const convertToExtendedUser = (profile: UserProfile, existingUser: ExtendedUser): ExtendedUser => {
   return {
     ...existingUser,
     name: profile.name,
     email: profile.email,
     phone: profile.phone,
-    role: profile.role,
-    team: profile.team,
+    // Cast app role to service role type
+    role: (profile.role as unknown) as Role,
+    team: (profile.team as unknown) as string,
     bio: profile.bio || '',
     skills: profile.skills || [],
     department: profile.department || ''
@@ -44,7 +48,7 @@ const convertToExtendedUser = (profile: UserProfile, existingUser: ExtendedUser)
 
 // Simulate API calls with real user management integration
 const profileAPI = {
-  getUserProfile: async (userId?: string): Promise<UserProfile> => {
+  async getUserProfile(userId?: string): Promise<UserProfile> {
     // Get current user from localStorage if no userId provided
     if (!userId) {
       const userData = localStorage.getItem('user');
@@ -67,13 +71,13 @@ const profileAPI = {
     return convertToUserProfile(user);
   },
 
-  updateUserProfile: async (profileData: Partial<UserProfile>): Promise<UserProfile> => {
+  async updateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
     // Get current user ID
     const userData = localStorage.getItem('user');
     if (!userData) {
       throw new Error('No current user found');
     }
-    
+
     const currentUser = JSON.parse(userData);
     const userId = currentUser.id;
 
@@ -85,20 +89,21 @@ const profileAPI = {
 
     // Merge the profile data with existing user data
     const updatedUserData = {
-      name: profileData.name || existingUser.name,
-      email: profileData.email || existingUser.email,
-      phone: profileData.phone || existingUser.phone,
-      role: profileData.role || existingUser.role,
-      team: profileData.team || existingUser.team,
+      name: profileData.name ?? existingUser.name,
+      email: profileData.email ?? existingUser.email,
+      phone: profileData.phone ?? existingUser.phone,
+      // Cast app role to service role type when sending to service
+      role: ((profileData.role as unknown) as Role) ?? existingUser.role,
+      team: ((profileData.team as unknown) as string) ?? existingUser.team,
       status: existingUser.status,
-      bio: profileData.bio || existingUser.bio || '',
-      skills: profileData.skills || existingUser.skills || [],
-      department: profileData.department || existingUser.department || ''
+      bio: profileData.bio ?? existingUser.bio ?? '',
+      skills: profileData.skills ?? existingUser.skills ?? [],
+      department: profileData.department ?? existingUser.department ?? ''
     };
 
     // Update user through UserManagementService
     const updatedUser = await UserManagementService.updateUser(userId, updatedUserData);
-    
+
     // Update localStorage user data if email or name changed
     if (profileData.name || profileData.email) {
       const newUserData = {
@@ -111,61 +116,19 @@ const profileAPI = {
 
     return convertToUserProfile(updatedUser);
   },
-    // Update localStorage user data if email or name changed
-    if (profileData.name || profileData.email) {
-      const newUserData = {
-        ...currentUser,
-        name: updatedUser.name,
-        email: updatedUser.email
-      };
-      localStorage.setItem('user', JSON.stringify(newUserData));
-    }
 
-    return convertToUserProfile(updatedUser);
-  },
-
-  updateUserPreferences: async (preferences: UserProfile['preferences']): Promise<UserProfile> => {
+  async updateUserPreferences(preferences: UserProfile['preferences']): Promise<UserProfile> {
     // Get current profile
     const profile = await profileAPI.getUserProfile();
-    
-    // Update preferences in localStorage
-    const updatedProfile = {
+
+    // Update preferences and persist in localStorage
+    const updatedProfile: UserProfile = {
       ...profile,
       preferences: { ...profile.preferences, ...preferences }
     };
-    
+
     localStorageService.setItem('userProfile', updatedProfile);
     return updatedProfile;
-  }
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Get current profile
-    const storedProfile = localStorageService.getItem('userProfile');
-    let current: UserProfile;
-    
-    if (storedProfile && typeof storedProfile === 'object' && storedProfile !== null) {
-      const stored = storedProfile as any;
-      current = {
-        ...stored,
-        joinDate: new Date(stored.joinDate || '2023-01-15'),
-        lastLogin: stored.lastLogin ? new Date(stored.lastLogin) : new Date()
-      } as UserProfile;
-    } else {
-      current = mockUserProfile;
-    }
-    
-    // Update profile
-    const updated: UserProfile = {
-      ...current,
-      ...profileData,
-      id: current.id, // Ensure ID doesn't change
-      lastLogin: new Date() // Update last login
-    };
-    
-    // Save to localStorage
-    localStorageService.setItem('userProfile', updated);
-    
-    return updated;
   }
 };
 
@@ -179,7 +142,7 @@ export const useUserProfile = () => {
 
 export const useUpdateUserProfile = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: profileAPI.updateUserProfile,
     onSuccess: (data) => {
