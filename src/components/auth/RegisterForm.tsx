@@ -32,6 +32,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [verificationSent, setVerificationSent] = useState<{ to: string } | null>(null)
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -49,12 +50,16 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
 
     try {
       const { confirmPassword, ...registerData } = data
-      const registerWithDefaults = {
-        ...registerData,
-        role: 'MEMBER' as const,
-        teamId: 'recovery'
-      }
+      const registerWithDefaults = { ...registerData, role: 'MEMBER' as const, teamId: 'recovery' }
       const result = await authClient.register(registerWithDefaults)
+
+      if (!result.token) {
+        // Unprivileged users must verify email first
+        setVerificationSent({ to: registerData.email })
+        return
+      }
+
+      // Admins (or privileged) get token and are logged in immediately
       localStorage.setItem('auth_token', result.token)
       localStorage.setItem('user', JSON.stringify(result.user))
       onSuccess(result.user, result.token)
@@ -63,6 +68,24 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-2xl text-center">Verify your email</CardTitle>
+            <CardDescription className="text-center">
+              We sent a verification link to {verificationSent.to}. Please verify and then sign in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={onSwitchToLogin}>Back to Sign In</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

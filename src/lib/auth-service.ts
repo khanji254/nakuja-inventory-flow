@@ -2,9 +2,12 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
 import { UserRole } from '@prisma/client'
+import { randomBytes } from 'crypto'
+import { sendEmail } from './email-service'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 const JWT_EXPIRES_IN = '7d'
+const APP_BASE_URL = process.env.APP_BASE_URL || process.env.VERCEL_URL || 'http://localhost:3000'
 
 export interface AuthUser {
   id: string
@@ -48,13 +51,7 @@ export class AuthService {
   static async validateToken(token: string): Promise<boolean> {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any
-      
-      // Check if user still exists and is active
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: { id: true, isActive: true }
-      })
-      
+      const user = await prisma.user.findUnique({ where: { id: decoded.userId }, select: { id: true, isActive: true } })
       return user ? user.isActive : false
     } catch (error) {
       return false
@@ -64,71 +61,38 @@ export class AuthService {
   static async login(credentials: LoginCredentials): Promise<{ user: AuthUser; token: string }> {
     const { email, password } = credentials
 
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-      include: {
-        team: true
-      }
-    })
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
+    if (!user) throw new Error('Invalid email or password')
+    if (!user.isActive) throw new Error('Account is deactivated')
 
-    if (!user) {
-      throw new Error('Invalid email or password')
-    }
-
-    if (!user.isActive) {
-      throw new Error('Account is deactivated')
-    }
-
-    // Verify password
     const isValidPassword = await this.comparePassword(password, user.password)
-    if (!isValidPassword) {
-      throw new Error('Invalid email or password')
+    if (!isValidPassword) throw new Error('Invalid email or password')
+
+    if (!user.emailVerifiedAt && user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
+      throw new Error('Please verify your email before logging in')
     }
 
-    // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() }
-    })
-
-    // Log the login
+    await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } })
     await this.logAuditAction(user.id, 'LOGIN', 'users', user.id)
 
-    // Generate token
     const token = this.generateToken(user.id)
-
-    const authUser: AuthUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      teamId: user.teamId || undefined,
-      permissions: user.permissions
-    }
-
+    const authUser: AuthUser = { id: user.id, name: user.name, email: user.email, role: user.role, teamId: user.teamId || undefined, permissions: user.permissions }
     return { user: authUser, token }
   }
 
   static async register(data: RegisterData): Promise<{ user: AuthUser; token: string }> {
     const { name, email, password, role = 'MEMBER', teamId } = data
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() }
-    })
+    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
+    if (existingUser) throw new Error('User with this email already exists')
 
-    if (existingUser) {
-      throw new Error('User with this email already exists')
-    }
-
-    // Hash password
     const hashedPassword = await this.hashPassword(password)
-
-    // Set default permissions based on role
     const permissions = this.getDefaultPermissions(role)
 
-    // Create user
+    const isPrivileged = role === 'ADMIN' || role === 'SUPER_ADMIN'
+    const verificationToken = isPrivileged ? null : randomBytes(32).toString('hex')
+    const verificationTokenExpires = isPrivileged ? null : new Date(Date.now() + 1000 * 60 * 60 * 24)
+
     const user = await prisma.user.create({
       data: {
         name,
@@ -136,14 +100,13 @@ export class AuthService {
         password: hashedPassword,
         role,
         teamId,
-        permissions
-      },
-      include: {
-        team: true
+        permissions,
+        emailVerifiedAt: isPrivileged ? new Date() : null,
+        verificationToken,
+        verificationTokenExpires,
       }
     })
 
-    // Create user profile
     await prisma.userProfile.create({
       data: {
         userId: user.id,
@@ -152,68 +115,41 @@ export class AuthService {
         role: user.role,
         teamId: user.teamId,
         joinDate: new Date(),
-        preferences: {
-          theme: 'system',
-          notifications: true,
-          emailUpdates: true,
-          language: 'en'
-        }
+        preferences: { theme: 'system', notifications: true, emailUpdates: true, language: 'en' }
       }
     })
 
-    // Log the registration
     await this.logAuditAction(user.id, 'CREATE', 'users', user.id)
 
-    // Generate token
-    const token = this.generateToken(user.id)
-
-    const authUser: AuthUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      teamId: user.teamId || undefined,
-      permissions: user.permissions
+    if (!isPrivileged && verificationToken) {
+      // send verification email
+      const base = APP_BASE_URL.startsWith('http') ? APP_BASE_URL : `https://${APP_BASE_URL}`
+      const verifyUrl = `${base}/api/auth/verify?token=${verificationToken}`
+      await sendEmail({
+        to: user.email,
+        subject: 'Verify your email',
+        html: `
+          <p>Hello ${user.name},</p>
+          <p>Thanks for signing up. Please verify your email by clicking the link below:</p>
+          <p><a href="${verifyUrl}">Verify Email</a></p>
+          <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+          <p>${verifyUrl}</p>
+        `
+      })
     }
 
+    const token = isPrivileged ? this.generateToken(user.id) : ''
+    const authUser: AuthUser = { id: user.id, name: user.name, email: user.email, role: user.role, teamId: user.teamId || undefined, permissions: user.permissions }
     return { user: authUser, token }
   }
 
-  static async getCurrentUser(token: string): Promise<AuthUser> {
-    try {
-      const { userId } = this.verifyToken(token)
+  static async verifyEmail(token: string) {
+    const user = await prisma.user.findFirst({ where: { verificationToken: token, verificationTokenExpires: { gt: new Date() } } })
+    if (!user) throw new Error('Invalid or expired verification token')
 
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          team: true
-        }
-      })
-
-      if (!user || !user.isActive) {
-        throw new Error('User not found or inactive')
-      }
-
-      return {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        teamId: user.teamId || undefined,
-        permissions: user.permissions
-      }
-    } catch (error) {
-      throw new Error('Invalid or expired token')
-    }
-  }
-
-  static async logout(token: string): Promise<void> {
-    try {
-      const { userId } = this.verifyToken(token)
-      await this.logAuditAction(userId, 'LOGOUT', 'users', userId)
-    } catch (error) {
-      // Silent fail for logout
-    }
+    await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date(), verificationToken: null, verificationTokenExpires: null } })
+    await this.logAuditAction(user.id, 'UPDATE', 'users', user.id)
+    return { ok: true }
   }
 
   static getDefaultPermissions(role: UserRole): string[] {
