@@ -34,6 +34,7 @@ export default async function handler(req: any, res: any) {
     const result = await AuthService.login({ email, password })
     return res.status(200).json(result)
   } catch (error: any) {
+    console.error('LOGIN ERROR', { message: error?.message, stack: error?.stack })
     return res.status(401).json({ error: error?.message || 'Invalid credentials' })
   }
 }

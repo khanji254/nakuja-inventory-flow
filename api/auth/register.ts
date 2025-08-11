@@ -34,6 +34,7 @@ export default async function handler(req: any, res: any) {
     const result = await AuthService.register({ name, email, password, role, teamId })
     return res.status(201).json(result)
   } catch (error: any) {
+    console.error('REGISTER ERROR', { message: error?.message, stack: error?.stack })
     return res.status(400).json({ error: error?.message || 'Registration failed' })
   }
 }
