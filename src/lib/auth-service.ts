@@ -265,4 +265,33 @@ export class AuthService {
     
     return false
   }
+
+  static async getCurrentUser(token: string): Promise<AuthUser> {
+    try {
+      const { userId } = this.verifyToken(token)
+      const user = await prisma.user.findUnique({ where: { id: userId } })
+      if (!user || !user.isActive) {
+        throw new Error('User not found or inactive')
+      }
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        teamId: user.teamId || undefined,
+        permissions: user.permissions
+      }
+    } catch (error) {
+      throw new Error('Invalid or expired token')
+    }
+  }
+
+  static async logout(token: string): Promise<void> {
+    try {
+      const { userId } = this.verifyToken(token)
+      await this.logAuditAction(userId, 'LOGOUT', 'users', userId)
+    } catch (error) {
+      // Silent fail for logout
+    }
+  }
 }
