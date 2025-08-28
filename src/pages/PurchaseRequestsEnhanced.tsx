@@ -29,13 +29,9 @@ import { useVendors } from '@/hooks/useVendors';
 import { useToast } from '@/hooks/use-toast';
 import { useMoveToPendingInventory } from '@/hooks/usePendingInventory';
 import { PurchaseRequest, PurchaseList, Team } from '@/types';
-import { User, usePermissions } from '@/lib/permissions';
+import { usePermissions } from '@/lib/permissions';
 
-interface PurchaseRequestsProps {
-  user: User;
-}
-
-const PurchaseRequests = ({ user }: PurchaseRequestsProps) => {
+const PurchaseRequests = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');

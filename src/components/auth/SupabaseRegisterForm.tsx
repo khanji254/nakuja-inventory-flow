@@ -1,95 +1,68 @@
-import React, { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form'
-import { Alert, AlertDescription } from '../ui/alert'
-import { authClient } from '../../lib/auth-client'
-import { Eye, EyeOff, UserPlus } from 'lucide-react'
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form';
+import { Alert, AlertDescription } from '../ui/alert';
+import { Eye, EyeOff, UserPlus } from 'lucide-react';
+import { useAuth } from './AuthProvider';
 
 const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string(),
+  confirmPassword: z.string()
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
-})
+});
 
-type RegisterFormData = z.infer<typeof registerSchema>
+type RegisterFormData = z.infer<typeof registerSchema>;
 
-interface RegisterFormProps {
-  onSuccess: (user: any, token: string) => void
-  onSwitchToLogin: () => void
+interface SupabaseRegisterFormProps {
+  onSwitchToLogin: () => void;
 }
 
-export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [verificationSent, setVerificationSent] = useState<{ to: string } | null>(null)
+export function SupabaseRegisterForm({ onSwitchToLogin }: SupabaseRegisterFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { signUp } = useAuth();
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      name: '',
       email: '',
       password: '',
-      confirmPassword: '',
+      confirmPassword: ''
     }
-  })
+  });
 
   const onSubmit = async (data: RegisterFormData) => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
 
     try {
-      const { confirmPassword, ...registerData } = data
-      const registerWithDefaults = { ...registerData, role: 'MEMBER' as const, teamId: 'recovery' }
-      const result = await authClient.register(registerWithDefaults)
-
-      if (!result.token) {
-        // Unprivileged users must verify email first
-        setVerificationSent({ to: registerData.email })
-        return
+      const { error } = await signUp(data.email, data.password);
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess('Account created! Please check your email to verify your account.');
       }
-
-      // Admins (or privileged) get token and are logged in immediately
-      localStorage.setItem('auth_token', result.token)
-      localStorage.setItem('user', JSON.stringify(result.user))
-      onSuccess(result.user, result.token)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed')
+      setError('An unexpected error occurred');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-
-  if (verificationSent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-2xl text-center">Verify your email</CardTitle>
-            <CardDescription className="text-center">
-              We sent a verification link to {verificationSent.to}. Please verify and then sign in.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full" onClick={onSwitchToLogin}>Back to Sign In</Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -99,7 +72,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
           </div>
           <CardTitle className="text-2xl text-center">Create Account</CardTitle>
           <CardDescription className="text-center">
-            Join the Inventory Management System
+            Join the Nakuja Project Management system
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -111,23 +84,11 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
                 </Alert>
               )}
 
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Enter your full name"
-                        disabled={isLoading}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {success && (
+                <Alert>
+                  <AlertDescription>{success}</AlertDescription>
+                </Alert>
+              )}
 
               <FormField
                 control={form.control}
@@ -219,7 +180,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               />
 
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Creating Account...' : 'Create Account'}
+                {isLoading ? 'Creating account...' : 'Create Account'}
               </Button>
             </form>
           </Form>
@@ -239,5 +200,5 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

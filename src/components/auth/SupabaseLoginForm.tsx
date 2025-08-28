@@ -1,31 +1,31 @@
-import React, { useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form'
-import { Alert, AlertDescription } from '../ui/alert'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
-import { authClient } from '../../lib/auth-client'
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form';
+import { Alert, AlertDescription } from '../ui/alert';
+import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { useAuth } from './AuthProvider';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters')
-})
+});
 
-type LoginFormData = z.infer<typeof loginSchema>
+type LoginFormData = z.infer<typeof loginSchema>;
 
-interface LoginFormProps {
-  onSuccess: (user: any, token: string) => void
-  onSwitchToRegister: () => void
+interface SupabaseLoginFormProps {
+  onSwitchToRegister: () => void;
 }
 
-export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showPassword, setShowPassword] = useState(false)
+export function SupabaseLoginForm({ onSwitchToRegister }: SupabaseLoginFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const { signIn } = useAuth();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -33,23 +33,23 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
       email: '',
       password: ''
     }
-  })
+  });
 
   const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
-      const result = await authClient.login(data)
-      localStorage.setItem('auth_token', result.token)
-      localStorage.setItem('user', JSON.stringify(result.user))
-      onSuccess(result.user, result.token)
+      const { error } = await signIn(data.email, data.password);
+      if (error) {
+        setError(error.message);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError('An unexpected error occurred');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -62,7 +62,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
           </div>
           <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
           <CardDescription className="text-center">
-            Sign in to your Inventory Management account
+            Sign in to your Nakuja Project Management account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -146,21 +146,8 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
               </Button>
             </p>
           </div>
-
-          <div className="mt-6 pt-6 border-t">
-            <div className="text-xs text-gray-500 space-y-1">
-              <p><strong>Demo Accounts:</strong></p>
-              <p>Super Admin: admin@nakuja.org / admin123</p>
-              <p>Admin: john.admin@nakuja.org / admin123</p>
-              <p>Team Lead: alex.lead@nakuja.org / lead123</p>
-              <p>Purchasing Lead: sarah.purchasing@nakuja.org / purchasing123</p>
-              <p>Inventory Lead: mike.inventory@nakuja.org / inventory123</p>
-              <p>Supervisor: lisa.supervisor@nakuja.org / supervisor123</p>
-              <p>Member: jane.member@nakuja.org / member123</p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

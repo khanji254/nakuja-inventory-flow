@@ -12,13 +12,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NotificationsDropdown } from '@/components/ui/notifications-dropdown';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface HeaderProps {
-  user?: any;
   onLogout?: () => void;
 }
 
-export const Header = ({ user, onLogout }: HeaderProps) => {
+export const Header = ({ onLogout }: HeaderProps) => {
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleProfileClick = () => {
@@ -57,8 +58,8 @@ export const Header = ({ user, onLogout }: HeaderProps) => {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div>
-                  <p className="font-medium">{user?.name || 'User'}</p>
-                  <p className="text-sm text-muted-foreground">{user?.role || 'Team Member'}</p>
+                  <p className="font-medium">{user?.email || 'User'}</p>
+                  <p className="text-sm text-muted-foreground">Team Member</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

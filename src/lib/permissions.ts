@@ -302,41 +302,32 @@ export class PermissionManager {
   }
 }
 
-// React hook for permissions
-export function usePermissions(user: User | null) {
-  if (!user) {
-    return {
-      hasPermission: () => false,
-      canAccessTeam: () => false,
-      canEditTeam: () => false,
-      canApprovePurchase: () => false,
-      canManageUsers: () => false,
-      canAssignRoles: () => false,
-      canEditInventory: () => false,
-      canEditBOM: () => false,
-      canViewAnalytics: () => false,
-      canExportData: () => false,
-      canImportData: () => false,
-      getAllowedTeams: () => [],
-      canViewUserData: () => false,
-      getAssignableRoles: () => []
-    }
-  }
+// React hook for permissions - simplified for now
+export function usePermissions() {
+  // For now, return admin-level permissions since we don't have user profiles set up yet
+  // This will be updated once we implement proper user management with Supabase
+  const defaultUser: User = {
+    id: 'temp-admin',
+    name: 'Admin User',
+    email: 'admin@nakuja.org',
+    role: 'SUPER_ADMIN',
+    permissions: ROLE_PERMISSIONS.SUPER_ADMIN
+  };
 
   return {
-    hasPermission: (permission: string) => PermissionManager.hasPermission(user, permission),
-    canAccessTeam: (teamId: string) => PermissionManager.canAccessTeam(user, teamId),
-    canEditTeam: (teamId: string) => PermissionManager.canEditTeam(user, teamId),
-    canApprovePurchase: (teamId?: string) => PermissionManager.canApprovePurchase(user, teamId),
-    canManageUsers: () => PermissionManager.canManageUsers(user),
-    canAssignRoles: (targetUser?: User) => PermissionManager.canAssignRoles(user, targetUser),
-    canEditInventory: (teamId?: string) => PermissionManager.canEditInventory(user, teamId),
-    canEditBOM: (teamId?: string) => PermissionManager.canEditBOM(user, teamId),
-    canViewAnalytics: () => PermissionManager.canViewAnalytics(user),
-    canExportData: () => PermissionManager.canExportData(user),
-    canImportData: () => PermissionManager.canImportData(user),
-    getAllowedTeams: (allTeams: string[]) => PermissionManager.getAllowedTeams(user, allTeams),
-    canViewUserData: (targetUser: User) => PermissionManager.canViewUserData(user, targetUser),
-    getAssignableRoles: () => PermissionManager.getAssignableRoles(user)
+    hasPermission: (permission: string) => PermissionManager.hasPermission(defaultUser, permission),
+    canAccessTeam: (teamId: string) => PermissionManager.canAccessTeam(defaultUser, teamId),
+    canEditTeam: (teamId: string) => PermissionManager.canEditTeam(defaultUser, teamId),
+    canApprovePurchase: (teamId?: string) => PermissionManager.canApprovePurchase(defaultUser, teamId),
+    canManageUsers: () => PermissionManager.canManageUsers(defaultUser),
+    canAssignRoles: (targetUser?: User) => PermissionManager.canAssignRoles(defaultUser, targetUser),
+    canEditInventory: (teamId?: string) => PermissionManager.canEditInventory(defaultUser, teamId),
+    canEditBOM: (teamId?: string) => PermissionManager.canEditBOM(defaultUser, teamId),
+    canViewAnalytics: () => PermissionManager.canViewAnalytics(defaultUser),
+    canExportData: () => PermissionManager.canExportData(defaultUser),
+    canImportData: () => PermissionManager.canImportData(defaultUser),
+    getAllowedTeams: (allTeams: string[]) => PermissionManager.getAllowedTeams(defaultUser, allTeams),
+    canViewUserData: (targetUser: User) => PermissionManager.canViewUserData(defaultUser, targetUser),
+    getAssignableRoles: () => PermissionManager.getAssignableRoles(defaultUser)
   }
 }

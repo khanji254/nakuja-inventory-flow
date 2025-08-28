@@ -17,14 +17,10 @@ import { useInventoryData } from '@/hooks/useInventoryData';
 import { syncService } from '@/lib/sync-service';
 import { useToast } from '@/hooks/use-toast';
 import { BOMItem } from '@/types';
-import { User, usePermissions } from '@/lib/permissions';
+import { usePermissions } from '@/lib/permissions';
 
-interface BOMProps {
-  user: User;
-}
-
-const BOM = ({ user }: BOMProps) => {
-  const permissions = usePermissions(user);
+const BOM = () => {
+  const permissions = usePermissions();
   const [selectedTeam, setSelectedTeam] = useState('Recovery');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { data: bomData = [] } = useBOMData();
@@ -177,7 +173,7 @@ const BOM = ({ user }: BOMProps) => {
               onImport={handleBOMImport}
             />
           )}
-          {(permissions.canEditTeam(user.teamId || '') || permissions.hasPermission('WRITE_ALL')) ? (
+          {permissions.canEditBOM() ? (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button>

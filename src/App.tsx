@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
-import { LoginForm } from "./components/auth/LoginForm";
-import { RegisterForm } from "./components/auth/RegisterForm";
+import { SupabaseLoginForm } from "./components/auth/SupabaseLoginForm";
+import { SupabaseRegisterForm } from "./components/auth/SupabaseRegisterForm";
+import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import PurchaseRequests from "./pages/PurchaseRequestsEnhanced";
@@ -15,8 +16,6 @@ import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import { User } from "./lib/permissions";
-import { authClient } from "./lib/auth-client";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,71 +30,15 @@ const queryClient = new QueryClient({
   },
 });
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+function AppContent() {
   const [showRegister, setShowRegister] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  console.log('App state:', { isAuthenticated, showRegister }); // Debug log
-
-  // Check for existing auth on app load
-  useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('auth_token');
-      const userData = localStorage.getItem('user');
-      
-      if (token) {
-        try {
-          // Validate token and fetch current user from backend
-          const currentUser = await authClient.me(token);
-          setUser(currentUser as unknown as User);
-          setIsAuthenticated(true);
-        } catch (error) {
-          // Invalid/expired token
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('user');
-        }
-      } else if (userData) {
-        // Cleanup stale local user if no token
-        localStorage.removeItem('user');
-      }
-      setLoading(false);
-    };
-
-    checkAuth();
-  }, []);
-
-  const handleLogin = (userData: User, token: string) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-  };
-
-  const handleLogout = async () => {
-    const token = localStorage.getItem('auth_token');
-    try {
-      if (token) {
-        await authClient.logout(token);
-      }
-    } catch {
-      // ignore logout errors
-    } finally {
-      setUser(null);
-      setIsAuthenticated(false);
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
-    }
-  };
+  const { user, loading, signOut } = useAuth();
 
   const handleSwitchToRegister = () => {
-    console.log('Switching to register form'); // Debug log
     setShowRegister(true);
   };
 
   const handleSwitchToLogin = () => {
-    console.log('Switching to login form'); // Debug log
     setShowRegister(false);
   };
 
@@ -107,20 +50,16 @@ function App() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
     if (showRegister) {
-      console.log('Rendering RegisterForm'); // Debug log
       return (
-        <RegisterForm
-          onSuccess={handleLogin}
+        <SupabaseRegisterForm
           onSwitchToLogin={handleSwitchToLogin}
         />
       );
     } else {
-      console.log('Rendering LoginForm'); // Debug log
       return (
-        <LoginForm
-          onSuccess={handleLogin}
+        <SupabaseLoginForm
           onSwitchToRegister={handleSwitchToRegister}
         />
       );
@@ -131,22 +70,30 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<AppLayout user={user} onLogout={handleLogout} />}>
-            <Route index element={<Dashboard user={user} />} />
-            <Route path="inventory" element={<Inventory user={user} />} />
-            <Route path="purchase-requests" element={<PurchaseRequests user={user} />} />
-            <Route path="bom" element={<BOM user={user} />} />
-            <Route path="vendors" element={<Vendors user={user} />} />
-            <Route path="eisenhower" element={<EisenhowerMatrix user={user} />} />
-            <Route path="profile" element={<Profile user={user} />} />
-            <Route path="notifications" element={<Notifications user={user} />} />
-            <Route path="users" element={<Users user={user} />} />
-            <Route path="settings" element={<Settings user={user} />} />
+          <Route path="/" element={<AppLayout onLogout={signOut} />}>
+            <Route index element={<Dashboard />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="purchase-requests" element={<PurchaseRequests />} />
+            <Route path="bom" element={<BOM />} />
+            <Route path="vendors" element={<Vendors />} />
+            <Route path="eisenhower" element={<EisenhowerMatrix />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="notifications" element={<Notifications />} />
+            <Route path="users" element={<Users />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

@@ -37,12 +37,8 @@ interface MatrixTasks {
   'not-important-not-urgent': MatrixTask[];
 }
 
-interface TeamManagementPageProps {
-  user: User;
-}
-
-const TeamManagementPage = ({ user }: TeamManagementPageProps) => {
-  const permissions = usePermissions(user);
+const TeamManagementPage = () => {
+  const permissions = usePermissions();
   const { tasks: teamTasks, addTask, setTasks: setTeamTasks, teamMembers } = useTeamManagement();
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
