@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Grid3X3, Users, Calendar, BarChart3, CheckSquare, Download, Trash2, RotateCcw, Lock } from 'lucide-react';
-import TeamManagement from '@/components/team/TeamManagement';
+import { useAuth } from '@/components/auth/AuthProvider';
 import GanttChart from '@/components/gantt/GanttChart';
 import TaskAllocation from '@/components/tasks/TaskAllocation';
 import NotionTaskStatus from '@/components/tasks/NotionTaskStatus';
@@ -38,6 +38,7 @@ interface MatrixTasks {
 }
 
 const TeamManagementPage = () => {
+  const { user } = useAuth();
   const permissions = usePermissions();
   const { tasks: teamTasks, addTask, setTasks: setTeamTasks, teamMembers } = useTeamManagement();
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -66,16 +67,16 @@ const TeamManagementPage = () => {
 
   // Filter tasks based on user permissions - members only see their own tasks
   const getFilteredMatrixTasks = (): MatrixTasks => {
-    if (permissions.canEditTeam(user.teamId || '') || permissions.hasPermission('READ_ALL')) {
+    if (permissions.hasPermission('READ_ALL')) {
       return matrixTasks; // Team leads, supervisors, admins see all tasks
     }
     
     // Members only see tasks assigned to them or unassigned tasks
     const filtered: MatrixTasks = {
-      'important-urgent': matrixTasks['important-urgent'].filter(task => task.assigneeId === user.id || task.assigneeId === ''),
-      'important-not-urgent': matrixTasks['important-not-urgent'].filter(task => task.assigneeId === user.id || task.assigneeId === ''),
-      'not-important-urgent': matrixTasks['not-important-urgent'].filter(task => task.assigneeId === user.id || task.assigneeId === ''),
-      'not-important-not-urgent': matrixTasks['not-important-not-urgent'].filter(task => task.assigneeId === user.id || task.assigneeId === '')
+      'important-urgent': matrixTasks['important-urgent'].filter(task => task.assigneeId === user?.id || task.assigneeId === ''),
+      'important-not-urgent': matrixTasks['important-not-urgent'].filter(task => task.assigneeId === user?.id || task.assigneeId === ''),
+      'not-important-urgent': matrixTasks['not-important-urgent'].filter(task => task.assigneeId === user?.id || task.assigneeId === ''),
+      'not-important-not-urgent': matrixTasks['not-important-not-urgent'].filter(task => task.assigneeId === user?.id || task.assigneeId === '')
     };
     return filtered;
   };
@@ -271,10 +272,10 @@ const TeamManagementPage = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">
-              {permissions.canEditTeam(user.teamId || '') ? 'Team Management' : 'Task Management'}
+              {permissions.hasPermission('WRITE_ALL') ? 'Team Management' : 'Task Management'}
             </h1>
             <p className="text-muted-foreground">
-              {permissions.canEditTeam(user.teamId || '') 
+              {permissions.hasPermission('WRITE_ALL') 
                 ? 'Manage team, tasks, and project timeline' 
                 : 'View your tasks and project status. Create purchase requests from the Purchase Requests page.'
               }
@@ -294,12 +295,12 @@ const TeamManagementPage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${permissions.canEditTeam(user.teamId || '') ? 'grid-cols-6' : 'grid-cols-5'}`}>
+          <TabsList className={`grid w-full ${permissions.hasPermission('WRITE_ALL') ? 'grid-cols-6' : 'grid-cols-5'}`}>
             <TabsTrigger value="matrix">
               <Grid3X3 className="w-4 h-4 mr-2" />
               Matrix
             </TabsTrigger>
-            {permissions.canEditTeam(user.teamId || '') && (
+            {permissions.hasPermission('WRITE_ALL') && (
               <TabsTrigger value="team">
                 <Users className="w-4 h-4 mr-2" />
                 Team
@@ -333,7 +334,7 @@ const TeamManagementPage = () => {
                       Organize tasks by importance and urgency to prioritize effectively
                     </CardDescription>
                   </div>
-                  {permissions.canEditTeam(user.teamId || '') && (
+                  {permissions.hasPermission('WRITE_ALL') && (
                     <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
                       <DialogTrigger asChild>
                         <Button>
@@ -415,7 +416,7 @@ const TeamManagementPage = () => {
                     </DialogContent>
                   </Dialog>
                   )}
-                  {!permissions.canEditTeam(user.teamId || '') && (
+                  {!permissions.hasPermission('WRITE_ALL') && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Lock className="h-4 w-4" />
                       <span className="text-sm">View Only Mode</span>
@@ -450,7 +451,7 @@ const TeamManagementPage = () => {
                               )}
                               <p className="text-xs text-gray-500">Due: {format(task.deadline, 'MMM dd, yyyy')}</p>
                             </div>
-                            {permissions.canEditTeam(user.teamId || '') && (
+                            {permissions.hasPermission('WRITE_ALL') && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -491,7 +492,7 @@ const TeamManagementPage = () => {
                               )}
                               <p className="text-xs text-gray-500">Due: {format(task.deadline, 'MMM dd, yyyy')}</p>
                             </div>
-                            {permissions.canEditTeam(user.teamId || '') && (
+                            {permissions.hasPermission('WRITE_ALL') && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -532,7 +533,7 @@ const TeamManagementPage = () => {
                               )}
                               <p className="text-xs text-gray-500">Due: {format(task.deadline, 'MMM dd, yyyy')}</p>
                             </div>
-                            {permissions.canEditTeam(user.teamId || '') && (
+                            {permissions.hasPermission('WRITE_ALL') && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -573,7 +574,7 @@ const TeamManagementPage = () => {
                               )}
                               <p className="text-xs text-gray-500">Due: {format(task.deadline, 'MMM dd, yyyy')}</p>
                             </div>
-                            {permissions.canEditTeam(user.teamId || '') && (
+                            {permissions.hasPermission('WRITE_ALL') && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -593,9 +594,17 @@ const TeamManagementPage = () => {
             </Card>
           </TabsContent>
 
-          {permissions.canEditTeam(user.teamId || '') && (
+          {permissions.hasPermission('WRITE_ALL') && (
             <TabsContent value="team" className="space-y-6">
-              <TeamManagement />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Team Management</CardTitle>
+                  <CardDescription>Manage team members and assignments</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">Team management functionality coming soon...</p>
+                </CardContent>
+              </Card>
             </TabsContent>
           )}
 

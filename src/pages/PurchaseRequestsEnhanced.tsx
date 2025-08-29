@@ -30,8 +30,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useMoveToPendingInventory } from '@/hooks/usePendingInventory';
 import { PurchaseRequest, PurchaseList, Team } from '@/types';
 import { usePermissions } from '@/lib/permissions';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const PurchaseRequests = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
@@ -53,7 +55,7 @@ const PurchaseRequests = () => {
   const bulkImportMutation = useBulkImportPurchaseRequests();
   const moveToPendingMutation = useMoveToPendingInventory();
   const { toast } = useToast();
-  const permissions = usePermissions(user);
+  const permissions = usePermissions();
 
   const [formData, setFormData] = useState({
     itemName: '',
@@ -291,7 +293,7 @@ const PurchaseRequests = () => {
           <p className="text-muted-foreground">Manage purchase requests and automated ordering lists</p>
         </div>
         <div className="flex gap-2">
-          {permissions.canApprovePurchase(user.teamId) && (
+          {permissions.hasPermission('WRITE_ALL') && (
             <Button onClick={createListFromApproved} variant="outline">
               <FileText className="h-4 w-4 mr-2" />
               Create Lists from Approved
@@ -547,7 +549,7 @@ const PurchaseRequests = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              {request.status === 'pending' && permissions.canApprovePurchase(user.teamId) && (
+                              {request.status === 'pending' && permissions.hasPermission('WRITE_ALL') && (
                                 <>
                                   <Button
                                     size="sm"
@@ -566,7 +568,7 @@ const PurchaseRequests = () => {
                                   </Button>
                                 </>
                               )}
-                              {request.status === 'approved' && permissions.canApprovePurchase(user.teamId) && (
+                              {request.status === 'approved' && permissions.hasPermission('WRITE_ALL') && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStatusUpdate(request.id, 'ordered')}
@@ -575,7 +577,7 @@ const PurchaseRequests = () => {
                                   <ShoppingBag className="h-4 w-4" />
                                 </Button>
                               )}
-                              {request.status === 'ordered' && permissions.canApprovePurchase(user.teamId) && (
+                              {request.status === 'ordered' && permissions.hasPermission('WRITE_ALL') && (
                                 <Button
                                   size="sm"
                                   onClick={() => handleStatusUpdate(request.id, 'completed')}
@@ -584,7 +586,7 @@ const PurchaseRequests = () => {
                                   <Package className="h-4 w-4" />
                                 </Button>
                               )}
-                              {(request.status === 'approved' || request.status === 'rejected') && permissions.canApprovePurchase(user.teamId) && (
+                              {(request.status === 'approved' || request.status === 'rejected') && permissions.hasPermission('WRITE_ALL') && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -594,7 +596,7 @@ const PurchaseRequests = () => {
                                   Undo
                                 </Button>
                               )}
-                              {!permissions.canApprovePurchase(user.teamId) && (
+                              {!permissions.hasPermission('WRITE_ALL') && (
                                 <div className="flex items-center gap-2 text-muted-foreground">
                                   <Lock className="h-4 w-4" />
                                   <span className="text-xs">No Approval Rights</span>

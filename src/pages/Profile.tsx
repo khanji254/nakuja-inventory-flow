@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { useUserProfile, useUpdateUserProfile } from '@/hooks/useUserProfile';
+import { useUserProfile, useUpdateUserProfile, UserProfile as HookUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
 import { Team, UserRole, UserProfile } from '@/types';
 
@@ -20,12 +20,12 @@ const Profile = () => {
   const updateProfileMutation = useUpdateUserProfile();
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState<UserProfile>({
+  const [formData, setFormData] = useState<HookUserProfile>({
     id: '',
     name: '',
     email: '',
-    role: 'team-member' as UserRole,
-    team: 'Recovery' as Team,
+    role: 'team-member',
+    team: 'Recovery',
     phone: '',
     department: '',
     bio: '',
@@ -175,7 +175,7 @@ const Profile = () => {
                 <Label>Team</Label>
                 <Select 
                   value={formData.team} 
-                  onValueChange={(value) => setFormData({...formData, team: value as Team})}
+                  onValueChange={(value) => setFormData({...formData, team: value})}
                   disabled={!isEditing}
                 >
                   <SelectTrigger>
@@ -193,7 +193,7 @@ const Profile = () => {
                 <Label>Role</Label>
                 <Select 
                   value={formData.role} 
-                  onValueChange={(value) => setFormData({...formData, role: value as UserRole})}
+                  onValueChange={(value) => setFormData({...formData, role: value})}
                   disabled={!isEditing}
                 >
                   <SelectTrigger>

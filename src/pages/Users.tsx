@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { User, usePermissions, UserRole, ROLE_PERMISSIONS } from '@/lib/permissions';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { UserManagementService } from '@/lib/user-management-service';
 
 interface ExtendedUser {
@@ -37,12 +38,9 @@ interface ExtendedUser {
 // Add a reusable status type
 type StatusType = 'active' | 'inactive' | 'pending';
 
-interface UsersProps {
-  user: User;
-}
-
-const Users = ({ user }: UsersProps) => {
-  const permissions = usePermissions(user);
+const Users = () => {
+  const { user } = useAuth();
+  const permissions = usePermissions();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -356,14 +354,12 @@ const Users = ({ user }: UsersProps) => {
                         <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
                         <SelectItem value="INVENTORY_LEAD">Inventory Lead</SelectItem>
                         <SelectItem value="PURCHASING_LEAD">Purchasing Lead</SelectItem>
-                        {(user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && (
+                        {permissions.hasPermission('WRITE_ALL') && (
                           <>
                             <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
                             <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                           </>
-                        )}
-                        {user.role === 'SUPER_ADMIN' && (
-                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -673,15 +669,13 @@ const Users = ({ user }: UsersProps) => {
                     <SelectItem value="TEAM_LEAD">Team Lead</SelectItem>
                     <SelectItem value="INVENTORY_LEAD">Inventory Lead</SelectItem>
                     <SelectItem value="PURCHASING_LEAD">Purchasing Lead</SelectItem>
-                    {(user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && (
-                      <>
-                        <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
-                        <SelectItem value="ADMIN">Admin</SelectItem>
-                      </>
-                    )}
-                    {user.role === 'SUPER_ADMIN' && (
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                    )}
+                        {permissions.hasPermission('WRITE_ALL') && (
+                          <>
+                            <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                          </>
+                        )}
                   </SelectContent>
                 </Select>
               </div>
