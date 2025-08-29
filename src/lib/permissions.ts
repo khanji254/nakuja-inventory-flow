@@ -1,5 +1,5 @@
 // Role-Based Access Control System
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPERVISOR' | 'TEAM_LEAD' | 'PURCHASING_LEAD' | 'INVENTORY_LEAD' | 'MEMBER'
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'MEMBER'
 
 export interface User {
   id: string
@@ -52,7 +52,7 @@ export const PERMISSIONS = {
   IMPORT_DATA: 'IMPORT_DATA'
 } as const
 
-// Role-based permission mapping
+// Role-based permission mapping based on simplified roles
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   SUPER_ADMIN: [
     PERMISSIONS.ADMIN_ALL,
@@ -65,55 +65,32 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.EDIT_BOM,
     PERMISSIONS.EXPORT_DATA,
-    PERMISSIONS.IMPORT_DATA
+    PERMISSIONS.IMPORT_DATA,
+    PERMISSIONS.WRITE_INVENTORY
   ],
   
   ADMIN: [
-    PERMISSIONS.ADMIN_TEAM,
+    PERMISSIONS.ADMIN_ALL,
     PERMISSIONS.READ_ALL,
     PERMISSIONS.WRITE_ALL,
-    PERMISSIONS.APPROVE_TEAM_PURCHASES,
-    PERMISSIONS.MANAGE_TEAM,
+    PERMISSIONS.DELETE_ALL,
+    PERMISSIONS.APPROVE_PURCHASES,
+    PERMISSIONS.MANAGE_USERS,
+    PERMISSIONS.ASSIGN_ROLES,
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.EDIT_BOM,
     PERMISSIONS.EXPORT_DATA,
-    PERMISSIONS.IMPORT_DATA
-  ],
-  
-  SUPERVISOR: [
-    PERMISSIONS.READ_ALL,
-    PERMISSIONS.READ_TEAM,
-    PERMISSIONS.VIEW_ANALYTICS,
-    PERMISSIONS.VIEW_BOM,
-    PERMISSIONS.EXPORT_DATA
+    PERMISSIONS.IMPORT_DATA,
+    PERMISSIONS.WRITE_INVENTORY
   ],
   
   TEAM_LEAD: [
     PERMISSIONS.READ_TEAM,
     PERMISSIONS.WRITE_TEAM,
-    PERMISSIONS.MANAGE_TEAM,
-    PERMISSIONS.APPROVE_TEAM_PURCHASES,
-    PERMISSIONS.ASSIGN_ROLES, // Team leads can assign roles to their team members
-    PERMISSIONS.VIEW_TEAM_ANALYTICS,
-    PERMISSIONS.EDIT_BOM,
-    PERMISSIONS.EXPORT_DATA,
-    PERMISSIONS.IMPORT_DATA
-  ],
-  
-  PURCHASING_LEAD: [
-    PERMISSIONS.READ_TEAM,
-    PERMISSIONS.APPROVE_PURCHASES,
-    PERMISSIONS.APPROVE_TEAM_PURCHASES,
-    PERMISSIONS.VIEW_TEAM_ANALYTICS,
-    PERMISSIONS.VIEW_BOM,
-    PERMISSIONS.EXPORT_DATA
-  ],
-  
-  INVENTORY_LEAD: [
-    PERMISSIONS.READ_TEAM,
     PERMISSIONS.WRITE_INVENTORY,
-    PERMISSIONS.VIEW_TEAM_ANALYTICS,
+    PERMISSIONS.APPROVE_TEAM_PURCHASES,
     PERMISSIONS.EDIT_BOM,
+    PERMISSIONS.VIEW_TEAM_ANALYTICS,
     PERMISSIONS.EXPORT_DATA,
     PERMISSIONS.IMPORT_DATA
   ],
@@ -138,10 +115,6 @@ export class PermissionManager {
       return true
     }
     
-    // Supervisors can access all teams (read-only)
-    if (user.role === 'SUPERVISOR') {
-      return true
-    }
     
     // Users can access their own team
     if (user.teamId === teamId && this.hasPermission(user, PERMISSIONS.READ_TEAM)) {
@@ -167,10 +140,6 @@ export class PermissionManager {
       return true
     }
     
-    // Inventory lead can edit inventory for their team
-    if (user.role === 'INVENTORY_LEAD' && user.teamId === teamId) {
-      return true
-    }
     
     return false
   }
@@ -256,7 +225,7 @@ export class PermissionManager {
 
   // Get allowed teams for user
   static getAllowedTeams(user: User, allTeams: string[]): string[] {
-    if (this.hasPermission(user, PERMISSIONS.READ_ALL) || user.role === 'SUPERVISOR') {
+    if (this.hasPermission(user, PERMISSIONS.READ_ALL)) {
       return allTeams
     }
     
@@ -267,11 +236,6 @@ export class PermissionManager {
   static canViewUserData(currentUser: User, targetUser: User): boolean {
     // Super admin and admin can see all
     if (this.hasPermission(currentUser, PERMISSIONS.READ_ALL)) {
-      return true
-    }
-    
-    // Supervisors can see all
-    if (currentUser.role === 'SUPERVISOR') {
       return true
     }
     
@@ -291,11 +255,11 @@ export class PermissionManager {
   // Get available roles that user can assign
   static getAssignableRoles(user: User): UserRole[] {
     if (this.hasPermission(user, PERMISSIONS.MANAGE_USERS)) {
-      return ['SUPER_ADMIN', 'ADMIN', 'SUPERVISOR', 'TEAM_LEAD', 'PURCHASING_LEAD', 'INVENTORY_LEAD', 'MEMBER']
+      return ['SUPER_ADMIN', 'ADMIN', 'TEAM_LEAD', 'MEMBER']
     }
     
     if (user.role === 'TEAM_LEAD') {
-      return ['PURCHASING_LEAD', 'INVENTORY_LEAD', 'MEMBER']
+      return ['MEMBER']
     }
     
     return []
