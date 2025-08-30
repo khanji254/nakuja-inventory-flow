@@ -14,6 +14,7 @@ import EisenhowerMatrix from "./pages/EisenhowerMatrix";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
+import TeamManagement from "./pages/TeamManagement";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -80,6 +81,7 @@ function AppContent() {
             <Route path="profile" element={<Profile />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="users" element={<Users />} />
+            <Route path="team-management" element={<TeamManagement />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />

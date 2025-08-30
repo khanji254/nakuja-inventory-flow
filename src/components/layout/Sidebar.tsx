@@ -13,7 +13,8 @@ import {
   Building2,
   Edit2,
   Check,
-  X
+  X,
+  GitBranch
 } from 'lucide-react';
 import {
   Sidebar as SidebarRoot,
@@ -42,6 +43,7 @@ const mainNavItems = [
 ];
 
 const managementItems = [
+  { title: 'Team Management', url: '/team-management', icon: GitBranch },
   { title: 'Users', url: '/users', icon: Users },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
